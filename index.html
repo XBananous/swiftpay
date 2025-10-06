@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>SwiftPay — Factures & Paiements</title>
+
+  <!-- Bootstrap (design only) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="SwiftPay">
+  <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg">
+
+  <style>
+    .nav-user { display:inline-flex; align-items:center; gap:.5rem; }
+    .nav-user .avatar { width:36px; height:36px; border-radius:8px; object-fit:cover; }
+    .nav-user .user-info { font-size:0.78rem; line-height:1; }
+    .nav-user .user-id { color:#6c757d; font-size:0.68rem; }
+
+    #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 2100; display:flex; flex-direction:column; gap:.6rem; max-width: 360px; }
+    .action-card .card { height:100%; }
+    @media (max-width:575px) { .nav-user .user-info { display:none; } }
+
+    .modal-body { max-height: 65vh; overflow:auto; }
+  </style>
+</head>
+<body class="bg-light">
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-light bg-white shadow-sm">
+    <div class="container d-flex justify-content-between align-items-center">
+      <a class="navbar-brand mb-0 h1" href="#">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" alt="logo" width="36" height="36">
+      </a>
+
+      <div id="nav-controls" class="d-flex align-items-center gap-2"></div>
+    </div>
+  </nav>
+
+  <!-- loading overlay -->
+  <div id="loading-overlay" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="z-index:2000;">
+    <div class="text-center p-3 bg-white rounded shadow">
+      <div class="spinner-border text-primary mb-2" role="status" style="width:3rem;height:3rem"></div>
+      <div id="loading-message" class="fw-semibold">Chargement...</div>
+      <div id="loading-sub" class="small text-muted mt-1"></div>
+    </div>
+  </div>
+
+  <!-- toast container -->
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <div class="container py-4 pb-5">
+    <div class="row mb-3">
+      <div class="col-12 d-flex align-items-center">
+        <div>
+          <h1 class="h5 mb-0 fw-semibold">SwiftPay</h1>
+          <div id="status-sub" class="text-muted small">Génère et paie des factures — connecte-toi via Discord</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- action panel -->
+    <div id="action-panel" class="row g-3 mb-4"></div>
+
+    <div id="main-card" class="card shadow-sm">
+      <div class="card-body">
+        <div id="not-logged"><p id="not-logged-msg" class="mb-3">Connecte-toi via le bouton en haut à droite pour accéder aux fonctions protégées.</p><p class="text-muted small mb-0">Client ID : <code>1421903774066282518</code></p></div>
+        <div id="placeholder" class="d-none"></div>
+      </div>
+    </div>
+
+    <p class="text-center small text-muted mt-3">© 2025 SwiftPay</p>
+  </div>
+
+  <!-- === MODALS === -->
+
+  <!-- invoices modal (protected) -->
+  <div class="modal fade" id="invoicesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Mes factures</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mb-2"><input id="modal-search-paid" class="form-control" placeholder="Rechercher..."></div>
+          <div id="modal-paid-list"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- payment modal -->
+  <div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-md modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Paiement</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><div id="payment-modal-content"></div></div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- create invoice modal -->
+  <div class="modal fade" id="createInvoiceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Créer une facture</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mb-3"><label class="form-label">Nom de l'entreprise</label><input id="modal-company-name" class="form-control"></div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="fw-semibold">Articles</div>
+              <div><button id="modal-open-add-item" class="btn btn-outline-primary btn-sm"><i class="fas fa-plus me-1"></i> Ajouter</button></div>
+            </div>
+            <div id="modal-items-list"></div>
+            <div id="modal-no-items" class="text-center text-muted py-3">Aucun article</div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center"><div class="text-muted small">Total</div><div class="fw-bold fs-5" id="modal-grand-total">0.00 €</div></div>
+          <div class="mt-3 d-flex justify-content-end"><button id="modal-generate-invoice-btn" class="btn btn-success">Générer un lien</button></div>
+
+          <div id="modal-generated-link-area" class="mt-3 d-none">
+            <label class="form-label small">Lien (partageable)</label>
+            <div class="input-group mb-2"><input id="modal-generated-link" class="form-control" readonly><button class="btn btn-outline-secondary" id="modal-copy-link-btn"><i class="fas fa-copy"></i></button></div>
+            <div class="small text-muted">Le lien contient le payload encodé.</div>
+          </div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- item modal (reused) -->
+  <div class="modal fade" id="itemModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="item-form">
+          <div class="modal-header"><h5 class="modal-title">Ajouter un article</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <div class="mb-3"><label class="form-label">Nom</label><input id="item-name" class="form-control" required></div>
+            <div class="mb-3 row g-2">
+              <div class="col-6"><label class="form-label">Prix (€)</label><input id="item-price" type="number" step="0.01" min="0" class="form-control" required></div>
+              <div class="col-6"><label class="form-label">Quantité</label><input id="item-qty" type="number" min="1" value="1" class="form-control" required></div>
+            </div>
+            <div class="mb-3"><label class="form-label">Description</label><textarea id="item-desc" class="form-control" rows="2"></textarea></div>
+            <div class="mb-2"><label class="form-label">Icône</label><div class="d-flex gap-2 flex-wrap" id="icon-picker"></div></div>
+            <input type="hidden" id="item-icon" value="fa-tag">
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button type="submit" class="btn btn-primary">Ajouter</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- confirm modal -->
+  <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body"><p id="confirmModalMessage" class="mb-3"></p><div class="d-flex gap-2 justify-content-end"><button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button id="confirmModalOk" class="btn btn-primary">Confirmer</button></div></div></div></div>
+  </div>
+
+  <!-- install modal -->
+  <div class="modal fade" id="installModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Ajouter SwiftPay à l'écran d'accueil</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="small">iOS: Partager → Ajouter à l’écran d’accueil. Android: menu → Ajouter à l’écran d’accueil.</p></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div></div></div>
+  </div>
+
+  <!-- toast template -->
+  <div id="toast-template" class="d-none">
+    <div class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fermer"></button></div>
+    </div>
+  </div>
+
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"></script>
+
+  <script>
+/* =========================
+   CONFIG
+   ========================= */
+const clientId = "1421903774066282518";
+const registeredRedirectUri = "http://localhost:9898/Local/index.html?91A66A0D-E214-4932-9DDF-1919708F3FE7";
+const oauthUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(registeredRedirectUri)}&response_type=token&scope=identify%20email`;
+
+// Remplace par ton webhook
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1408562768763818204/PQhYBeQTDP5KeelYHZm4Hf1G_VsUzKC8Fja8_Oi-vTkTNJlUDLQv_DcCiqXqmWuDnPXU";
+
+const allowedDiscordIds = ["123456789012345678","987654321098765432","1421903774066282518"];
+
+/* =========================
+   HELPERS
+   ========================= */
+function showLoading(msg="Chargement...", sub=""){ document.getElementById("loading-message").textContent = msg; document.getElementById("loading-sub").textContent = sub; document.getElementById("loading-overlay").classList.remove("d-none"); }
+function hideLoading(){ document.getElementById("loading-overlay").classList.add("d-none"); document.getElementById("loading-sub").textContent = ""; }
+
+function showToast(text, type="primary", ttl=3500){
+  const container = document.getElementById("toast-container");
+  const tpl = document.getElementById("toast-template").firstElementChild.cloneNode(true);
+  tpl.className = `toast align-items-center text-bg-${type} border-0`;
+  tpl.querySelector(".toast-body").textContent = text;
+  container.prepend(tpl);
+  const bs = new bootstrap.Toast(tpl, { delay: ttl });
+  bs.show();
+  tpl.addEventListener("hidden.bs.toast", ()=> tpl.remove());
+}
+
+function base64EncodeUnicode(str){ return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,(m,p1)=>String.fromCharCode("0x"+p1))); }
+function base64DecodeUnicode(b64){ return decodeURIComponent(Array.prototype.map.call(atob(b64), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); }
+function escapeHtml(s=""){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+
+/* =========================
+   STATE & DOM
+   ========================= */
+let currentUser = null;
+let modalItems = []; // items for create invoice modal
+
+const navControls = document.getElementById("nav-controls");
+const actionPanel = document.getElementById("action-panel");
+
+/* =========================
+   ICON PICKER
+   ========================= */
+const ICONS = ["fa-tag","fa-box","fa-gamepad","fa-coins","fa-ticket","fa-tshirt","fa-headphones","fa-star","fa-mug-saucer","fa-phone","fa-laptop","fa-key","fa-gift","fa-heart","fa-book","fa-paw","fa-music","fa-camera","fa-shield","fa-toolbox"];
+function initIconPicker(){
+  const picker = document.getElementById("icon-picker");
+  if(!picker) return;
+  picker.innerHTML = "";
+  ICONS.forEach(ic=>{
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center";
+    btn.style.width = "44px"; btn.style.height = "44px";
+    btn.innerHTML = `<i class="fa-solid ${ic}"></i>`;
+    btn.addEventListener("click", ()=> {
+      document.getElementById("item-icon").value = ic;
+      picker.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+    picker.appendChild(btn);
+  });
+  const first = picker.querySelector("button");
+  if(first){ first.classList.add("active"); document.getElementById("item-icon").value = ICONS[0]; }
+}
+
+/* =========================
+   storage helpers
+   ========================= */
+function loadInvoices(){ return JSON.parse(localStorage.getItem("swiftpay_invoices") || "[]"); }
+function saveInvoices(arr){ localStorage.setItem("swiftpay_invoices", JSON.stringify(arr.slice(0,500))); }
+function pushInvoice(inv){ const arr = loadInvoices(); arr.unshift(inv); saveInvoices(arr); }
+
+function loadGeneratedLinks(){ return JSON.parse(localStorage.getItem("swiftpay_generated_links") || "[]"); }
+function saveGeneratedLink(rec){ const arr = loadGeneratedLinks(); arr.unshift(rec); localStorage.setItem("swiftpay_generated_links", JSON.stringify(arr.slice(0,200))); }
+
+/* =========================
+   build action panel
+   - Mes factures only when connected
+   - Create invoice only when connected+allowed
+   - Help always
+   ========================= */
+function buildActionPanel(){
+  actionPanel.innerHTML = "";
+  if(currentUser){
+    actionPanel.appendChild(cardAction("Mes factures","Ouvre la liste des factures (pop-up)", "fa-receipt", ()=> openInvoicesModal()));
+  }
+  if(currentUser && allowedDiscordIds.includes(currentUser.id)){
+    actionPanel.appendChild(cardAction("Créer une facture","Générer un lien de paiement", "fa-file-invoice-dollar", ()=> openCreateInvoiceModal()));
+  }
+  actionPanel.appendChild(cardAction("Aide / Installer","Ajouter SwiftPay à l'écran d'accueil", "fa-info-circle", ()=> new bootstrap.Modal(document.getElementById("installModal")).show()));
+}
+
+function cardAction(title, desc, icon, onClick){
+  const col = document.createElement("div"); col.className = "col-12 col-md-6 col-lg-4 action-card";
+  const card = document.createElement("div"); card.className = "card h-100";
+  card.innerHTML = `<div class="card-body d-flex flex-column">
+    <div class="d-flex align-items-center mb-3">
+      <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center" style="width:44px;height:44px;">
+        <i class="fa-solid ${icon} fa-lg text-primary"></i>
+      </div>
+      <div class="ms-3"><div class="fw-semibold">${escapeHtml(title)}</div><div class="text-muted small">${escapeHtml(desc)}</div></div>
+    </div>
+    <div class="mt-auto"><button class="btn btn-primary w-100 action-open">Ouvrir</button></div>
+  </div>`;
+  col.appendChild(card);
+  col.querySelector(".action-open").addEventListener("click", onClick);
+  return col;
+}
+
+/* =========================
+   INVOICES MODAL (protected)
+   - only open when currentUser
+   ========================= */
+function openInvoicesModal(){
+  if(!currentUser){ showToast("Connecte-toi pour accéder aux factures","warning"); return; }
+  renderInvoicesIntoModal();
+  new bootstrap.Modal(document.getElementById("invoicesModal")).show();
+}
+
+function renderInvoicesIntoModal(){
+  const container = document.getElementById("modal-paid-list");
+  container.innerHTML = "";
+  const arr = loadInvoices();
+  if(arr.length === 0){ container.innerHTML = `<div class="text-center text-muted py-3">Aucune facture.</div>`; return; }
+
+  arr.forEach(inv=>{
+    const statusBadge = inv.status === "paid" ? `<span class="badge bg-success">Payée</span>` : `<span class="badge bg-warning text-dark">Impayée</span>`;
+    const actionBtn = inv.status === "paid" ? `<button class="btn btn-sm btn-outline-primary modal-view" data-id="${inv.id}">Voir</button>` : `<button class="btn btn-sm btn-primary modal-pay" data-id="${inv.id}">Payer</button>`;
+    const disableDelete = inv.status !== "paid";
+    const delAttr = disableDelete ? "disabled title='Suppression interdite: impayée'": "";
+    const card = document.createElement("div"); card.className = "card mb-2";
+    card.innerHTML = `<div class="card-body d-flex align-items-start justify-content-between">
+      <div>
+        <div class="fw-semibold">${escapeHtml(inv.company || "—")}</div>
+        <div class="small text-muted">Par ${escapeHtml(inv.generatedByName || inv.generatedBy)} • ${new Date(inv.createdAt||Date.now()).toLocaleString()}</div>
+        <div class="small text-muted mt-1">${escapeHtml(inv.id)}</div>
+      </div>
+      <div class="text-end">
+        <div class="fw-semibold mb-2">${Number(inv.total).toFixed(2)} €</div>
+        <div class="d-flex flex-column gap-2 align-items-end">
+          ${actionBtn}
+          <button class="btn btn-sm btn-outline-danger modal-del" data-id="${inv.id}" ${delAttr}>Suppr</button>
+          <div class="mt-1">${statusBadge}</div>
+        </div>
+      </div>
+    </div>`;
+    container.appendChild(card);
+  });
+
+  document.getElementById("modal-search-paid").value = "";
+  document.getElementById("modal-search-paid").oninput = (e)=> filterInvoicesInModal(e.target.value);
+
+  container.querySelectorAll(".modal-view").forEach(b=> b.addEventListener("click", ()=>{
+    const id = b.getAttribute("data-id"); const inv = loadInvoices().find(x=>x.id===id);
+    if(inv) showInvoiceDetailsInModal(inv);
+  }));
+  container.querySelectorAll(".modal-pay").forEach(b=> b.addEventListener("click", ()=>{
+    const id = b.getAttribute("data-id"); const inv = loadInvoices().find(x=>x.id===id);
+    if(inv){ openPaymentModalFromInvoice(inv); bootstrap.Modal.getInstance(document.getElementById("invoicesModal"))?.hide(); }
+  }));
+  container.querySelectorAll(".modal-del").forEach(b=> b.addEventListener("click", ()=>{
+    const id = b.getAttribute("data-id"); const inv = loadInvoices().find(x=>x.id===id);
+    if(!inv) return;
+    if(inv.status !== "paid"){ showToast("Suppression interdite : impayée","warning"); return; }
+    confirmModal(`Supprimer la facture ${inv.id} ?`).then(ok => { if(!ok) return; const newArr = loadInvoices().filter(x=>x.id!==id); saveInvoices(newArr); renderInvoicesIntoModal(); showToast("Facture supprimée","info"); });
+  }));
+}
+
+function filterInvoicesInModal(q){
+  q = (q||"").toLowerCase();
+  document.querySelectorAll("#modal-paid-list .card").forEach(card=>{
+    card.style.display = card.innerText.toLowerCase().includes(q) ? "" : "none";
+  });
+}
+
+function showInvoiceDetailsInModal(inv){
+  const content = document.getElementById("payment-modal-content");
+  let html = `<div class="mb-2"><div class="fw-semibold">${escapeHtml(inv.company||"")}</div><div class="small text-muted">Créée par: ${escapeHtml(inv.generatedByName||inv.generatedBy)}</div></div>`;
+  html += `<div class="mb-2">Montant: <strong>${Number(inv.total).toFixed(2)} €</strong></div>`;
+  html += `<div class="mb-2">${inv.status === "paid" ? '<span class="badge bg-success">Payée</span>' : '<span class="badge bg-warning text-dark">Impayée</span>'}</div>`;
+  html += `<div class="mt-2">` + inv.items.map(it=> `<div class="d-flex justify-content-between mb-2"><div><i class="fa-solid ${escapeHtml(it.icon)} me-2"></i>${escapeHtml(it.name)}</div><div>${Number(it.price*it.qty).toFixed(2)} €</div></div>`).join("") + `</div>`;
+  content.innerHTML = html;
+  new bootstrap.Modal(document.getElementById("paymentModal")).show();
+}
+
+/* =========================
+   PAYMENT MODAL
+   - supports saving payer info locally
+   ========================= */
+function openPaymentModalFromInvoice(inv){
+  const payload = {
+    company: inv.company,
+    items: inv.items,
+    total: inv.total,
+    generatedBy: inv.generatedBy,
+    generatedByName: inv.generatedByName || "",
+    createdAt: inv.createdAt || Date.now(),
+    originInvoiceId: inv.id
+  };
+  renderPaymentModal(payload);
+}
+
+function renderPaymentModal(payload){
+  const content = document.getElementById("payment-modal-content");
+  content.innerHTML = "";
+  const payerSaved = JSON.parse(localStorage.getItem("swiftpay_payer") || "null");
+  const creatorHtml = `<div class="d-flex align-items-center gap-2 mb-2"><div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width:44px;height:44px;">${payload.generatedByAvatar ? `<img src="${payload.generatedByAvatar}" width="36" height="36" style="border-radius:6px;object-fit:cover;">` : `<i class="fa-solid fa-user fa-lg text-muted"></i>`}</div><div><div class="fw-semibold small mb-0">${escapeHtml(payload.generatedByName || payload.generatedBy)}</div><div class="small text-muted">${escapeHtml(payload.generatedBy)}</div></div></div>`;
+  let html = `<div>${creatorHtml}</div><div class="fw-semibold mb-1">${escapeHtml(payload.company || "Paiement")}</div><div class="mb-2 text-muted">Total: <span class="fw-semibold">${Number(payload.total).toFixed(2)} €</span></div><div id="pm-items" class="mb-3"></div>`;
+  html += `<form id="pm-form"><div class="row g-2"><div class="col-md-6"><input id="pm-firstname" class="form-control" placeholder="Prénom RP" required></div><div class="col-md-6"><input id="pm-lastname" class="form-control" placeholder="Nom RP" required></div></div><div class="mb-2 mt-2"><input id="pm-address" class="form-control" placeholder="Adresse" required></div><div class="form-check mb-2"><input class="form-check-input" type="checkbox" value="" id="pm-save-info"><label class="form-check-label" for="pm-save-info">Sauvegarder mes informations</label></div><div class="d-flex gap-2"><button id="pm-pay-btn" class="btn btn-primary">Payer</button></div></form>`;
+  content.innerHTML = html;
+  const itemsDiv = document.getElementById("pm-items");
+  payload.items.forEach(it=> {
+    const row = document.createElement("div"); row.className = "d-flex justify-content-between mb-2";
+    row.innerHTML = `<div><i class="fa-solid ${escapeHtml(it.icon)} me-2"></i>${escapeHtml(it.name)}</div><div>${Number(it.price*it.qty).toFixed(2)} €</div>`;
+    itemsDiv.appendChild(row);
+  });
+
+  // prefill saved info if present
+  const payerSavedObj = JSON.parse(localStorage.getItem("swiftpay_payer") || "null");
+  if(payerSavedObj){
+    document.getElementById("pm-firstname").value = payerSavedObj.firstname || "";
+    document.getElementById("pm-lastname").value = payerSavedObj.lastname || "";
+    document.getElementById("pm-address").value = payerSavedObj.address || "";
+    document.getElementById("pm-save-info").checked = true;
+  }
+
+  const modal = new bootstrap.Modal(document.getElementById("paymentModal"));
+  modal.show();
+
+  document.getElementById("pm-form").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const fn = document.getElementById("pm-firstname").value.trim();
+    const ln = document.getElementById("pm-lastname").value.trim();
+    const addr = document.getElementById("pm-address").value.trim();
+    const saveInfo = document.getElementById("pm-save-info").checked;
+    if(!fn || !ln || !addr){ showToast("Remplis tous les champs","warning"); return; }
+    if(saveInfo){
+      localStorage.setItem("swiftpay_payer", JSON.stringify({ firstname: fn, lastname: ln, address: addr }));
+      showToast("Informations sauvegardées","success");
+    }
+    payload._payer = { firstname: fn, lastname: ln, address: addr };
+    const ok = await confirmModal(`Confirmer le paiement de ${Number(payload.total).toFixed(2)} € ?`);
+    if(!ok) return;
+    showLoading("Envoi du paiement...", "Préparation du webhook...");
+    const success = await sendWebhookAndSaveInvoice(payload);
+    hideLoading();
+    if(!success){
+      // create unpaid invoice idempotently
+      createUnpaidInvoiceIfNotExistsFromPayload(payload);
+      showToast("Webhook échoué — facture enregistrée en impayé", "warning", 6000);
+    } else {
+      showToast("Paiement réussi", "success");
+    }
+    // refresh invoices modal list if it's open
+    try { renderInvoicesIntoModal(); } catch(e){}
+    modal.hide();
+  });
+}
+
+/* =========================
+   createUnpaidInvoiceIfNotExistsFromPayload
+   - creates unpaid invoice only once (idempotent)
+   ========================= */
+function createUnpaidInvoiceIfNotExistsFromPayload(payload){
+  try {
+    const b64 = localStorage.getItem("pending_pay") || null;
+    const invoices = loadInvoices();
+    const exists = invoices.some(inv => (inv.originB64 && b64 && inv.originB64 === b64) || (inv.generatedBy === payload.generatedBy && inv.total === payload.total && Math.abs((inv.createdAt || 0) - (payload.createdAt || 0)) < 1000*60*5));
+    if(exists) return;
+    const inv = {
+      id: "inv_" + Math.random().toString(36).slice(2,10),
+      company: payload.company || "",
+      items: payload.items,
+      total: payload.total,
+      payer: payload._payer ? `${payload._payer.firstname} ${payload._payer.lastname}` : null,
+      createdAt: Date.now(),
+      paidAt: null,
+      status: "unpaid",
+      generatedBy: payload.generatedBy,
+      generatedByName: payload.generatedByName || "",
+      originB64: b64
+    };
+    pushInvoice(inv);
+  } catch(e){ console.error("createUnpaidInvoiceIfNotExists error", e); }
+}
+
+/* =========================
+   sendWebhookAndSaveInvoice
+   returns boolean success
+   - on success upsert invoice as paid
+   - on failure return false (caller handles unpaid creation)
+   ========================= */
+async function sendWebhookAndSaveInvoice(payload){
+  try {
+    const payer = payload._payer || { firstname:"", lastname:"", address:"" };
+    const content = `Nouveau paiement SwiftPay — ${payload.company || "—"} : ${Number(payload.total).toFixed(2)} €`;
+    const embed = {
+      title: "Détails du paiement",
+      fields: [
+        { name: "Entreprise", value: payload.company || "—", inline: true },
+        { name: "Montant", value: Number(payload.total).toFixed(2) + " €", inline: true },
+        { name: "Client RP", value: `${escapeHtml(payer.firstname)} ${escapeHtml(payer.lastname)}`, inline: true },
+        { name: "Adresse", value: escapeHtml(payer.address) },
+        { name: "Articles", value: payload.items.map(it => `${it.name} x${it.qty} — ${it.price.toFixed(2)} €`).join("\n") }
+      ],
+      timestamp: new Date().toISOString()
+    };
+    const body = { content, embeds: [embed] };
+    const res = await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type":"application/json" }, body: JSON.stringify(body) });
+    if(!res.ok) throw new Error("Webhook error");
+    // success: upsert invoice
+    const inv = {
+      id: payload.originInvoiceId || ("inv_" + Math.random().toString(36).slice(2,10)),
+      company: payload.company || "",
+      items: payload.items,
+      total: payload.total,
+      payer: `${payer.firstname} ${payer.lastname}`,
+      createdAt: Date.now(),
+      paidAt: Date.now(),
+      status: "paid",
+      generatedBy: payload.generatedBy,
+      generatedByName: payload.generatedByName || ""
+    };
+    const invoices = loadInvoices();
+    const idx = invoices.findIndex(x => x.id === inv.id || (x.originB64 && localStorage.getItem("pending_pay") && x.originB64 === localStorage.getItem("pending_pay")));
+    if(idx >= 0){ invoices.splice(idx,1); invoices.unshift(inv); saveInvoices(invoices); }
+    else pushInvoice(inv);
+    // cleanup pending
+    try { localStorage.removeItem("pending_pay"); localStorage.removeItem("pending_pay_ts"); } catch(e){}
+    return true;
+  } catch(e){
+    console.error("webhook fail", e);
+    return false;
+  }
+}
+
+/* =========================
+   CREATE INVOICE MODAL behavior
+   - when clicking "Ajouter" open itemModal
+   - when itemModal closes, keep createInvoiceModal open and refresh list
+   ========================= */
+function openCreateInvoiceModal(){
+  if(!currentUser || !allowedDiscordIds.includes(currentUser.id)){ showToast("Accès refusé","warning"); return; }
+  modalItems = [];
+  document.getElementById("modal-company-name").value = "";
+  document.getElementById("modal-items-list").innerHTML = "";
+  document.getElementById("modal-no-items").classList.remove("d-none");
+  document.getElementById("modal-generated-link-area").classList.add("d-none");
+  document.getElementById("modal-grand-total").textContent = "0.00 €";
+  new bootstrap.Modal(document.getElementById("createInvoiceModal")).show();
+}
+
+/* item form inside modal */
+document.getElementById("item-form").addEventListener("submit",(e)=>{
+  e.preventDefault();
+  const name = document.getElementById("item-name").value.trim();
+  const price = parseFloat(document.getElementById("item-price").value);
+  const qty = parseInt(document.getElementById("item-qty").value,10) || 1;
+  const desc = document.getElementById("item-desc").value.trim();
+  const icon = document.getElementById("item-icon").value || "fa-tag";
+  if(!name || isNaN(price) || price < 0){ showToast("Données article invalides","danger"); return; }
+  modalItems.push({ name, price: Number(price.toFixed(2)), qty, desc, icon });
+  // hide item modal and ensure createInvoiceModal remains open and refreshed
+  const itemModalEl = document.getElementById("itemModal");
+  const bsItem = bootstrap.Modal.getInstance(itemModalEl);
+  bsItem?.hide();
+  // after hide event, refresh create modal items (we'll also refresh immediately)
+  renderModalItems();
+});
+
+/* ensure createInvoiceModal stays open when opening itemModal
+   We'll track if createInvoiceModal was open and re-show after itemModal is shown/hidden if necessary */
+document.getElementById("modal-open-add-item").addEventListener("click", ()=>{
+  // open item modal (createInvoiceModal remains visible underneath)
+  new bootstrap.Modal(document.getElementById("itemModal")).show();
+});
+
+/* when itemModal hides, always refresh create modal UI */
+document.getElementById("itemModal").addEventListener("hidden.bs.modal", ()=>{
+  renderModalItems();
+});
+
+/* render items in create invoice modal */
+function renderModalItems(){
+  const list = document.getElementById("modal-items-list");
+  list.innerHTML = "";
+  if(modalItems.length === 0){ document.getElementById("modal-no-items").classList.remove("d-none"); document.getElementById("modal-grand-total").textContent = "0.00 €"; return; }
+  document.getElementById("modal-no-items").classList.add("d-none");
+  modalItems.forEach((it, idx)=>{
+    const el = document.createElement("div"); el.className = "d-flex justify-content-between align-items-start mb-2 card p-2";
+    el.innerHTML = `<div><div class="fw-semibold">${escapeHtml(it.name)}</div><div class="small text-muted">${escapeHtml(it.desc||"")}</div></div><div class="text-end"><div>${it.price.toFixed(2)} €</div><div class="small text-muted">x ${it.qty}</div><div class="mt-2"><button class="btn btn-sm btn-outline-danger modal-item-remove" data-idx="${idx}">Suppr</button></div></div>`;
+    list.appendChild(el);
+  });
+  list.querySelectorAll(".modal-item-remove").forEach(b=> b.addEventListener("click", ()=>{
+    const i = +b.getAttribute("data-idx"); modalItems.splice(i,1); renderModalItems();
+  }));
+  const total = modalItems.reduce((s,it)=>s + it.price * it.qty, 0);
+  document.getElementById("modal-grand-total").textContent = total.toFixed(2) + " €";
+}
+
+/* generate invoice from modal */
+document.getElementById("modal-generate-invoice-btn").addEventListener("click", ()=>{
+  if(!currentUser){ showToast("Connecte-toi d'abord","warning"); return; }
+  if(modalItems.length === 0){ showToast("Ajoute au moins un article","warning"); return; }
+  const payload = {
+    company: document.getElementById("modal-company-name").value || "",
+    items: modalItems,
+    total: modalItems.reduce((s,it)=>s + it.price*it.qty, 0),
+    generatedBy: currentUser.id,
+    generatedByName: currentUser.username,
+    createdAt: Date.now()
+  };
+  const b64 = base64EncodeUnicode(JSON.stringify(payload));
+  const url = new URL(registeredRedirectUri); url.searchParams.set("pay", b64);
+  const link = url.toString();
+  document.getElementById("modal-generated-link").value = link;
+  document.getElementById("modal-generated-link-area").classList.remove("d-none");
+  saveGeneratedLink({ id: "gl_" + Math.random().toString(36).slice(2,9), link, payloadB64: b64, createdAt: Date.now() });
+  // store pending_pay so if the creator leaves it will become an unpaid invoice (but do NOT auto-open it)
+  localStorage.setItem("pending_pay", b64);
+  localStorage.setItem("pending_pay_ts", Date.now().toString());
+  showToast("Lien généré et stocké localement","success");
+});
+
+/* copy generated link */
+document.getElementById("modal-copy-link-btn").addEventListener("click", async ()=>{
+  try{ await navigator.clipboard.writeText(document.getElementById("modal-generated-link").value); showToast("Lien copié","success"); } catch { showToast("Impossible de copier","danger"); }
+});
+
+/* =========================
+   pending_pay handling
+   - when a pay param is present in URL we store it and create unpaid invoice (idempotent)
+   - BUT we DO NOT auto-open payment modal on return
+   ========================= */
+function storePendingPayFromUrlIfPresent(){
+  const u = new URL(window.location.href);
+  const pay = u.searchParams.get("pay");
+  if(pay){
+    try {
+      // validate quickly
+      JSON.parse(base64DecodeUnicode(pay));
+      localStorage.setItem("pending_pay", pay);
+      localStorage.setItem("pending_pay_ts", Date.now().toString());
+      // remove param
+      u.searchParams.delete("pay");
+      history.replaceState(null,"",u.toString());
+      showToast("Un lien de paiement a été détecté et enregistré comme impayé (tu peux le gérer dans Mes factures une fois connecté).","info",6000);
+      // create unpaid invoice once
+      ensurePendingPayBecomesUnpaidInvoice();
+    } catch(e){ console.error("invalid pay param", e); }
+  }
+}
+
+function ensurePendingPayBecomesUnpaidInvoice(){
+  const b64 = localStorage.getItem("pending_pay");
+  if(!b64) return;
+  try {
+    const payload = JSON.parse(base64DecodeUnicode(b64));
+    const invoices = loadInvoices();
+    const exists = invoices.some(inv => (inv.originB64 && inv.originB64 === b64) || (inv.generatedBy === payload.generatedBy && inv.total === payload.total && Math.abs((inv.createdAt||0) - (payload.createdAt||payload.ts||0)) < 1000*60*5));
+    if(!exists){
+      const inv = {
+        id: "inv_" + Math.random().toString(36).slice(2,10),
+        company: payload.company || "",
+        items: payload.items,
+        total: payload.total,
+        payer: null,
+        createdAt: Date.now(),
+        paidAt: null,
+        status: "unpaid",
+        generatedBy: payload.generatedBy,
+        generatedByName: payload.generatedByName || "",
+        originB64: b64
+      };
+      pushInvoice(inv);
+    }
+  } catch(e){ console.error("invalid pending_pay", e); localStorage.removeItem("pending_pay"); localStorage.removeItem("pending_pay_ts"); }
+}
+
+/* =========================
+   confirm modal helper
+   ========================= */
+function confirmModal(message){
+  return new Promise(resolve=>{
+    const modalEl = document.getElementById("confirmModal");
+    const modal = new bootstrap.Modal(modalEl);
+    document.getElementById("confirmModalMessage").textContent = message;
+    const okBtn = document.getElementById("confirmModalOk");
+    function okHandler(){ cleanup(); resolve(true); }
+    function hiddenHandler(){ cleanup(); resolve(false); }
+    function cleanup(){ okBtn.removeEventListener("click", okHandler); modalEl.removeEventListener("hidden.bs.modal", hiddenHandler); }
+    okBtn.addEventListener("click", okHandler);
+    modalEl.addEventListener("hidden.bs.modal", hiddenHandler);
+    modal.show();
+  });
+}
+
+/* =========================
+   oauth + nav rendering
+   ========================= */
+function renderNavForUser(){
+  navControls.innerHTML = "";
+  if(!currentUser){
+    const loginBtn = document.createElement("button");
+    loginBtn.className = "btn btn-outline-primary btn-sm";
+    loginBtn.innerHTML = `<i class="fab fa-discord me-1"></i> Se connecter`;
+    loginBtn.addEventListener("click", startDiscordLogin);
+    navControls.appendChild(loginBtn);
+    buildActionPanel();
+    return;
+  }
+  const div = document.createElement("div"); div.className = "nav-user me-2";
+  const avatar = currentUser.avatar ? `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png?size=64` : null;
+  div.innerHTML = `${avatar ? `<img src="${avatar}" class="avatar">` : `<div class="avatar bg-secondary"></div>`}<div class="user-info"><div class="username fw-semibold small">${escapeHtml(currentUser.username)}</div><div class="user-id">${escapeHtml(currentUser.id)}</div></div>`;
+  const logoutBtn = document.createElement("button"); logoutBtn.className = "btn btn-outline-secondary btn-sm ms-2"; logoutBtn.textContent = "Déconnexion";
+  logoutBtn.addEventListener("click", ()=> {
+    localStorage.removeItem("access_token_demo");
+    currentUser = null;
+    showToast("Déconnecté","info");
+    // close all modals to avoid staying on protected UI
+    bootstrap.Modal.getInstance(document.getElementById("invoicesModal"))?.hide();
+    bootstrap.Modal.getInstance(document.getElementById("paymentModal"))?.hide();
+    bootstrap.Modal.getInstance(document.getElementById("createInvoiceModal"))?.hide();
+    renderNavForUser();
+    buildActionPanel();
+  });
+  navControls.appendChild(div); navControls.appendChild(logoutBtn);
+  buildActionPanel();
+}
+
+/* OAuth start */
+function startDiscordLogin(){
+  try {
+    localStorage.setItem("login_in_progress","1");
+    showLoading("Redirection vers Discord...", "Tu seras ramené après la connexion");
+    setTimeout(()=> { window.location.href = oauthUrl; }, 250);
+  } catch(e){ showToast("Impossible de démarrer la connexion","danger"); }
+}
+
+/* =========================
+   On load
+   ========================= */
+window.addEventListener("DOMContentLoaded", async ()=>{
+  initIconPicker();
+  // capture pay param and create unpaid invoice (but don't auto-open payment UI)
+  storePendingPayFromUrlIfPresent();
+  // try cached token
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.substring(1) : "";
+  const params = new URLSearchParams(hash);
+  let accessToken = params.get("access_token");
+  const urlParams = new URLSearchParams(window.location.search);
+  if(!accessToken) accessToken = urlParams.get("access_token");
+  const oauthCode = urlParams.get("code");
+
+  if(accessToken){
+    showLoading("Connexion...", "Récupération des infos Discord");
+    history.replaceState(null,"", location.pathname + location.search);
+    localStorage.setItem("access_token_demo", accessToken);
+    localStorage.removeItem("login_in_progress");
+    const user = await fetchDiscordUser(accessToken);
+    hideLoading();
+    if(user){ currentUser = user; renderNavForUser(); } else showToast("Token Discord invalide","danger");
+    return;
+  }
+
+  const demoToken = localStorage.getItem("access_token_demo");
+  if(demoToken){
+    showLoading("Connexion...", "Vérification token");
+    const user = await fetchDiscordUser(demoToken);
+    hideLoading();
+    if(user){ currentUser = user; renderNavForUser(); } else localStorage.removeItem("access_token_demo");
+  } else {
+    currentUser = null;
+    renderNavForUser();
+  }
+});
+
+/* helper: fetch discord user */
+async function fetchDiscordUser(token){
+  try {
+    const r = await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${token}` }});
+    if(!r.ok) throw new Error("Discord API error");
+    return await r.json();
+  } catch(e){ console.error("fetchDiscordUser error", e); return null; }
+}
+
+/* =========================
+   utility manifest
+   ========================= */
+(function createManifest(){
+  try {
+    const manifest = { name: "SwiftPay", short_name: "SwiftPay", start_url: registeredRedirectUri, display: "standalone", background_color: "#ffffff", theme_color: "#0d6efd", icons: [{ src: "https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg", sizes: "192x192", type: "image/svg+xml" }] };
+    const blob = new Blob([JSON.stringify(manifest)],{ type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("link"); link.rel = "manifest"; link.href = url; document.head.appendChild(link);
+  } catch(e){}
+})();
+  </script>
+</body>
+</html>
