@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>SwiftPay — Gérer les moyens de paiement</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+
+  <style>
+    body{ background:#f8f9fa; -webkit-font-smoothing:antialiased; }
+    .card-method { cursor: default; }
+    .method-iban { font-family: monospace; letter-spacing: .02em; }
+    .section-title { display:flex; align-items:center; gap:.75rem; }
+    .avatar { width:56px; height:56px; border-radius:12px; object-fit:cover; }
+    #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 2147483640; display:flex; flex-direction:column; gap:.6rem; max-width: 360px; }
+    .modal-backdrop.show { opacity: .35; }
+    .section-icon { width:56px; height:56px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:#fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .full-width-btn { width:100%; margin-top:1rem; }
+    #loading-overlay{ position:fixed; inset:0; background:rgba(255,255,255,0.6); z-index:2150000000; display:none; align-items:center; justify-content:center; }
+    #loading-inner{ display:flex; flex-direction:column; align-items:center; gap:.6rem; background:transparent; }
+    #loading-spinner{ width:4rem; height:4rem; }
+    .iban-help-valid { color: #0f5132; }   /* green-800 */
+    .iban-help-invalid { color: #842029; } /* red-800 */
+    @media (max-width:576px){ .avatar{ width:48px; height:48px } .section-icon{ width:48px; height:48px } }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-light bg-white shadow-sm">
+    <div class="container d-flex align-items-center gap-2">
+      <button id="nav-back-btn" class="btn btn-outline-secondary btn-sm" title="Retour">
+        <i class="fa-solid fa-arrow-left"></i>
+      </button>
+      <a class="navbar-brand mb-0 h1 d-flex align-items-center" href="#" title="SwiftPay">
+        <img src="logo.png" alt="logo" width="36" height="36">
+      </a>
+      <div class="ms-auto">
+        <button id="btn-refresh-account" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- LOADING overlay -->
+  <div id="loading-overlay" aria-hidden="true">
+    <div id="loading-inner">
+      <div id="loading-spinner" class="spinner-border text-primary" role="status" style="width:4rem;height:4rem"></div>
+      <div id="loading-message" class="fw-semibold">Chargement...</div>
+      <div id="loading-sub" class="small text-muted"></div>
+    </div>
+  </div>
+
+  <main class="container py-4">
+    <div class="row g-3">
+
+      <!-- Account -->
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="d-flex gap-3 align-items-center">
+            <div class="section-icon">
+              <img id="acct-avatar" src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:10px">
+            </div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold" id="acct-username">Non connecté</div>
+              <div class="small text-muted" id="acct-userid"></div>
+              <div class="small text-muted mt-2" id="acct-company"></div>
+            </div>
+            <div>
+              <!-- refresh button is in nav also, kept here for legacy -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add method -->
+      <div class="col-12">
+        <div class="card p-3">
+          <div class="d-flex align-items-start gap-3">
+            <div class="section-icon"><i class="fa-solid fa-credit-card fa-lg text-primary"></i></div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold">Gérer les moyens de paiement</div>
+              <div class="small text-muted mt-2">Ajoute ici des moyens (Prénom / Nom / IBAN / Adresse). Un moyen par défaut peut être défini.</div>
+              <button id="btn-add-method" class="btn btn-primary full-width-btn" disabled><i class="fa-solid fa-plus me-1"></i> Ajouter un moyen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Methods list -->
+      <div class="col-12">
+        <div id="methods-empty" class="alert alert-info d-none">
+          Aucun moyen enregistré. Clique sur <strong>Ajouter un moyen</strong> pour commencer.
+        </div>
+        <div id="methods-not-connected" class="alert alert-warning d-none">
+          Connecte-toi (Discord) pour voir et gérer tes moyens de paiement.
+        </div>
+        <div id="methods-list" class="row g-3"></div>
+      </div>
+
+      <!-- Info -->
+      <div class="col-12">
+        <div class="card p-3">
+          <div>
+            <div class="fw-semibold">Info</div>
+            <div class="small text-muted mt-2">Les moyens sont stockés dans Supabase (table <code>payment_methods</code>).</div>
+            <div class="small text-muted mt-1">SwiftPay applique une commission de 10% (affichée lors de la création de facture).</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toasts -->
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast-template" class="d-none">
+    <div class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div class="modal fade" id="methodModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="method-form" class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="methodModalTitle">Ajouter un moyen de paiement</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="method-edit-id" value="">
+          <div class="mb-3">
+            <label class="form-label">Prénom</label>
+            <input id="method-firstname" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nom</label>
+            <input id="method-name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">IBAN</label>
+            <input id="method-iban" class="form-control" required placeholder="Ex: EU0000000000000">
+            <div id="iban-help" class="form-text small text-muted">Format attendu : <code>EU0000000000000</code></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Adresse</label>
+            <input id="method-address" class="form-control" required placeholder="Adresse postale">
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="method-set-default">
+            <label class="form-check-label" for="method-set-default">Définir comme moyen par défaut</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="method-save-btn" disabled>Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body">
+          <p id="confirmModalMessage" class="mb-3"></p>
+          <div class="d-flex gap-2 justify-content-end">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button id="confirmModalOk" class="btn btn-primary">Confirmer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+
+  <script>
+  // =========================
+  // SwiftPay - Supabase integration
+  // =========================
+
+  // ---------- SUPABASE CONFIG (donné par toi) ----------
+  const SUPABASE_URL = "https://hqpewmimnllbjowvbljm.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxcGV3bWltbmxsYmpvd3ZibGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NDYzNzUsImV4cCI6MjA3NTUyMjM3NX0.BEdZuFYnJP7_14GFA8pYYq-gXRewphM49QP5NRWWHso";
+  const supabase = supabase_js.createClient ? supabase_js.createClient(SUPABASE_URL, SUPABASE_KEY) : supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Note: depending on the CDN global name, but the above handles common cases.
+
+  // ---------- UI helpers ----------
+  function showLoading(msg="Chargement...", sub="") {
+    const el = document.getElementById("loading-overlay");
+    document.getElementById("loading-message").textContent = msg;
+    document.getElementById("loading-sub").textContent = sub;
+    el.style.display = "flex";
+  }
+  function hideLoading(){ document.getElementById("loading-overlay").style.display = "none"; document.getElementById("loading-sub").textContent = ""; }
+
+  function showToast(text, type="primary", ttl=3000){
+    const container = document.getElementById("toast-container");
+    const tpl = document.getElementById("toast-template").firstElementChild.cloneNode(true);
+    tpl.className = `toast align-items-center text-bg-${type} border-0`;
+    tpl.querySelector(".toast-body").textContent = text;
+    container.prepend(tpl);
+    const bs = new bootstrap.Toast(tpl, { delay: ttl });
+    bs.show();
+    tpl.addEventListener("hidden.bs.toast", ()=> tpl.remove());
+  }
+
+  // Escape helper
+  function escapeHtml(s=""){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'", "&#039;"); }
+
+  // ---------- IBAN helpers ----------
+  function normalizeIBAN(s = ""){ return s.replace(/\s+/g, "").toUpperCase(); }
+  function isIBAN_EU13(iban){
+    const n = normalizeIBAN(iban);
+    return /^EU\d{13}$/.test(n);
+  }
+
+  // ---------- Modal stacking / confirm (copied from ton code) ----------
+  function hideOpenModals(){
+    const shown = Array.from(document.querySelectorAll('.modal.show')).map(el => el.id).filter(Boolean);
+    shown.forEach(id => {
+      const el = document.getElementById(id);
+      bootstrap.Modal.getInstance(el)?.hide();
+    });
+    return shown;
+  }
+  function restoreHiddenModals(list){
+    if(!Array.isArray(list)) return;
+    setTimeout(()=> {
+      list.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) new bootstrap.Modal(el).show();
+      });
+    }, 180);
+  }
+  function confirmModal(message){
+    return new Promise(resolve=>{
+      const parents = hideOpenModals();
+      const modalEl = document.getElementById("confirmModal");
+      const modal = new bootstrap.Modal(modalEl);
+      document.getElementById("confirmModalMessage").textContent = message;
+      const okBtn = document.getElementById("confirmModalOk");
+      let settled = false;
+      function okHandler(){
+        if(settled) return;
+        settled = true; modal.hide(); cleanup(); resolve(true);
+      }
+      function hiddenHandler(){
+        if(settled) return;
+        settled = true; cleanup(); resolve(false);
+      }
+      function cleanup(){
+        okBtn.removeEventListener("click", okHandler);
+        modalEl.removeEventListener("hidden.bs.modal", hiddenHandler);
+        restoreHiddenModals(parents);
+      }
+      okBtn.addEventListener("click", okHandler);
+      modalEl.addEventListener("hidden.bs.modal", hiddenHandler);
+      modal.show();
+    });
+  }
+
+  // ---------- Discord helpers ----------
+  // Token is stored by ton flow in localStorage under "access_token_demo"
+  function getDiscordToken(){
+    return localStorage.getItem("access_token_demo") || null;
+  }
+
+  async function fetchDiscordProfile(){
+    const token = getDiscordToken();
+    if(!token) return null;
+    try {
+      const r = await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${token}` }});
+      if(!r.ok) throw new Error("discord");
+      const u = await r.json();
+      return u;
+    } catch(e){
+      console.warn("discord fetch failed", e);
+      return null;
+    }
+  }
+
+  // ---------- SUPABASE CRUD ----------
+  // Table expected: payment_methods
+  // recommended columns: id (int, pk), discord_id text, firstname text, name text, iban text, address text, is_default boolean, inserted_at timestamptz default now()
+
+  async function loadMethods(){
+    // Returns array of rows for the current discord user
+    const discord = await fetchDiscordProfile();
+    if(!discord || !discord.id) return [];
+    showLoading("Chargement des moyens...", "Récupération depuis Supabase");
+    try {
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('discord_id', discord.id)
+        .order('id', { ascending: true });
+
+      if(error){
+        console.error("Supabase select error", error);
+        showToast("Erreur lors de la récupération des moyens", "danger");
+        return [];
+      }
+      // Normalize field names to match existing front UI (firstname, name, iban, address, isDefault)
+      return (data || []).map(r => ({
+        id: r.id,
+        firstname: r.firstname,
+        name: r.name,
+        iban: r.iban,
+        address: r.address,
+        isDefault: !!r.is_default
+      }));
+    } finally {
+      hideLoading();
+    }
+  }
+
+  async function saveMethods(arr){
+    // arr = array of { firstname, name, iban, address, isDefault }
+    const discord = await fetchDiscordProfile();
+    if(!discord || !discord.id){
+      showToast("Non connecté à Discord", "warning");
+      return false;
+    }
+    showLoading("Enregistrement...", "Sauvegarde sur Supabase");
+    try {
+      // Start by deleting existing rows for user
+      const del = await supabase.from('payment_methods').delete().eq('discord_id', discord.id);
+      if(del.error){
+        console.warn("delete error (continuing):", del.error);
+        // continue anyway
+      }
+
+      // Normalize array and set discord_id, is_default -> is_default
+      const toInsert = arr.slice(0, 200).map(m => ({
+        discord_id: discord.id,
+        firstname: m.firstname,
+        name: m.name,
+        iban: m.iban,
+        address: m.address,
+        is_default: !!m.isDefault
+      }));
+      if(toInsert.length === 0){
+        // nothing to insert; done
+        return true;
+      }
+      const ins = await supabase.from('payment_methods').insert(toInsert);
+      if(ins.error){
+        console.error("Supabase insert error", ins.error);
+        showToast("Erreur lors de l'enregistrement", "danger");
+        return false;
+      }
+      return true;
+    } catch(e){
+      console.error("saveMethods failed", e);
+      showToast("Erreur lors de l'enregistrement", "danger");
+      return false;
+    } finally { hideLoading(); }
+  }
+
+  // ---------- Rendering & handlers ----------
+  async function renderMethods(){
+    const listEl = document.getElementById("methods-list");
+    const emptyEl = document.getElementById("methods-empty");
+    const notConnectedEl = document.getElementById("methods-not-connected");
+
+    const discord = await fetchDiscordProfile();
+    if(!discord || !discord.id){
+      listEl.innerHTML = "";
+      notConnectedEl.classList.remove("d-none");
+      emptyEl.classList.add("d-none");
+      document.getElementById("btn-add-method").disabled = true;
+      // update account UI
+      document.getElementById("acct-username").textContent = "Non connecté";
+      document.getElementById("acct-userid").textContent = "";
+      document.getElementById("acct-avatar").src = "https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg";
+      return;
+    } else {
+      notConnectedEl.classList.add("d-none");
+      document.getElementById("btn-add-method").disabled = false;
+    }
+
+    const arr = await loadMethods();
+    listEl.innerHTML = "";
+    if(arr.length === 0){
+      emptyEl.classList.remove("d-none");
+      return;
+    }
+    emptyEl.classList.add("d-none");
+
+    arr.forEach((m, idx) => {
+      const col = document.createElement("div");
+      col.className = "col-12 col-md-6";
+      const card = document.createElement("div");
+      card.className = "card card-method shadow-sm p-3";
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold">${escapeHtml(m.firstname)} ${escapeHtml(m.name)} ${m.isDefault ? `<span class="badge bg-success ms-2">Par défaut</span>` : ""}</div>
+            <div class="small text-muted method-iban">${escapeHtml(m.iban)}</div>
+            <div class="small text-muted mt-1">${escapeHtml(m.address)}</div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <div class="btn-group">
+              <button class="btn btn-sm btn-outline-secondary btn-edit" title="Modifier"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn btn-sm btn-outline-primary btn-default" title="Définir par défaut"><i class="fa-solid fa-star"></i></button>
+              <button class="btn btn-sm btn-outline-danger btn-del" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+        </div>
+      `;
+      card.querySelector(".btn-edit").addEventListener("click", ()=> openMethodModal(idx));
+      card.querySelector(".btn-default").addEventListener("click", ()=> setDefaultMethod(idx));
+      card.querySelector(".btn-del").addEventListener("click", async ()=>{
+        const ok = await confirmModal("Supprimer ce moyen de paiement ?");
+        if(!ok) return;
+        const methods = await loadMethods();
+        const wasDefault = !!methods[idx]?.isDefault;
+        methods.splice(idx, 1);
+        if(wasDefault && methods.length > 0) methods[0].isDefault = true;
+        await saveMethods(methods);
+        showToast("Moyen supprimé", "info");
+        renderMethods();
+      });
+      col.appendChild(card);
+      listEl.appendChild(col);
+    });
+  }
+
+  // Open add/edit modal
+  let methodModalInstance = null;
+  function openMethodModal(idx){
+    // idx undefined => add
+    (async ()=>{
+      const discord = await fetchDiscordProfile();
+      if(!discord || !discord.id){
+        showToast("Connecte-toi pour gérer les moyens", "warning");
+        return;
+      }
+
+      const parents = hideOpenModals();
+      const modalEl = document.getElementById("methodModal");
+      methodModalInstance = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+
+      document.getElementById("method-form").reset();
+      document.getElementById("method-edit-id").value = "";
+      document.getElementById("method-set-default").checked = false;
+      document.getElementById("method-save-btn").disabled = true;
+      document.getElementById("iban-help").className = "form-text small text-muted";
+      document.getElementById("iban-help").textContent = "Format attendu : EU0000000000000.";
+
+      document.getElementById("methodModalTitle").textContent = (typeof idx === "number") ? "Modifier un moyen de paiement" : "Ajouter un moyen de paiement";
+      if(typeof idx === "number"){
+        const methods = await loadMethods();
+        const m = methods[idx];
+        if(m){
+          document.getElementById("method-firstname").value = m.firstname;
+          document.getElementById("method-name").value = m.name;
+          document.getElementById("method-iban").value = m.iban;
+          document.getElementById("method-address").value = m.address;
+          document.getElementById("method-edit-id").value = idx;
+          document.getElementById("method-set-default").checked = !!m.isDefault;
+        }
+      }
+
+      // inputs
+      const ibanInput = document.getElementById("method-iban");
+      const firstnameInput = document.getElementById("method-firstname");
+      const nameInput = document.getElementById("method-name");
+      const addressInput = document.getElementById("method-address");
+      function validateIBANField(){
+        const v = ibanInput.value.trim();
+        if(v === "") {
+          document.getElementById("iban-help").className = "form-text small text-muted";
+          document.getElementById("iban-help").textContent = "Format attendu : EU0000000000000.";
+        } else if(isIBAN_EU13(v)){
+          document.getElementById("iban-help").className = "form-text small iban-help-valid";
+          document.getElementById("iban-help").textContent = "IBAN conforme (EU + 13 chiffres).";
+        } else {
+          document.getElementById("iban-help").className = "form-text small iban-help-invalid";
+          document.getElementById("iban-help").textContent = "IBAN invalide — doit être du type EU0000000000000.";
+        }
+        const ok = firstnameInput.value.trim() && nameInput.value.trim() && addressInput.value.trim() && isIBAN_EU13(ibanInput.value);
+        document.getElementById("method-save-btn").disabled = !ok;
+      }
+      [ibanInput, firstnameInput, nameInput, addressInput].forEach(inp => {
+        inp.removeEventListener('input', validateIBANField);
+        inp.addEventListener('input', validateIBANField);
+      });
+
+      // submit handling
+      const form = document.getElementById("method-form");
+      if(form._handler) form.removeEventListener("submit", form._handler);
+      const handler = async function(e){
+        e.preventDefault();
+        const firstname = firstnameInput.value.trim();
+        const name = nameInput.value.trim();
+        const ibanRaw = ibanInput.value.trim();
+        const address = addressInput.value.trim();
+        const setDefault = document.getElementById("method-set-default").checked;
+        const iban = normalizeIBAN(ibanRaw);
+        if(!firstname || !name || !iban || !address){ showToast("Remplis tous les champs", "warning"); return; }
+        if(!isIBAN_EU13(iban)){ showToast("IBAN invalide (doit être EU + 13 chiffres)", "danger"); return; }
+        const id = document.getElementById("method-edit-id").value;
+        const arr = await loadMethods();
+        const record = { firstname, name, iban, address, isDefault: !!setDefault };
+        if(id === ""){
+          if(arr.length === 0 && !record.isDefault) record.isDefault = true;
+          if(record.isDefault) arr.forEach(x=> x.isDefault = false);
+          arr.push(record);
+        } else {
+          if(record.isDefault) arr.forEach(x=> x.isDefault = false);
+          arr[+id] = record;
+        }
+        if(!arr.some(x=>x.isDefault) && arr.length > 0) arr[0].isDefault = true;
+        methodModalInstance.hide();
+        const ok = await saveMethods(arr);
+        if(ok) showToast(id === "" ? "Moyen ajouté" : "Moyen mis à jour", "success");
+        else showToast("Erreur lors de l'enregistrement", "danger");
+        setTimeout(()=> {
+          renderMethods();
+          restoreHiddenModals(parents);
+        }, 220);
+      };
+      form.addEventListener("submit", handler);
+      form._handler = handler;
+
+      methodModalInstance.show();
+
+      modalEl.addEventListener("hidden.bs.modal", function onHidden(){
+        [ibanInput, firstnameInput, nameInput, addressInput].forEach(inp => inp.removeEventListener('input', validateIBANField));
+        restoreHiddenModals(parents);
+        modalEl.removeEventListener("hidden.bs.modal", onHidden);
+      });
+
+    })();
+  }
+
+  // set default method
+  async function setDefaultMethod(idx){
+    const methods = await loadMethods();
+    if(!methods[idx]) return;
+    methods.forEach((m,i)=> m.isDefault = (i === idx));
+    await saveMethods(methods);
+    showToast("Moyen défini par défaut", "success");
+    await renderMethods();
+  }
+
+  // populate account info & initial load
+  async function populateAccountInfo(){
+    const avatarEl = document.getElementById("acct-avatar");
+    const usernameEl = document.getElementById("acct-username");
+    const useridEl = document.getElementById("acct-userid");
+    const companyEl = document.getElementById("acct-company");
+
+    document.getElementById("methods-list").innerHTML = "";
+    document.getElementById("methods-empty").classList.add("d-none");
+    document.getElementById("methods-not-connected").classList.add("d-none");
+    document.getElementById("btn-add-method").disabled = true;
+
+    showLoading("Vérification compte...", "Récupération des informations Discord");
+    try {
+      const u = await fetchDiscordProfile();
+      if(!u){
+        avatarEl.src = "https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg";
+        usernameEl.textContent = "Non connecté";
+        useridEl.textContent = "";
+        companyEl.textContent = "";
+        document.getElementById("methods-not-connected").classList.remove("d-none");
+        document.getElementById("btn-add-method").disabled = true;
+        return;
+      }
+      usernameEl.textContent = u.username ? `${u.username}#${u.discriminator}` : "Utilisateur Discord";
+      useridEl.textContent = `ID: ${u.id || ""}`;
+      avatarEl.src = u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128` : avatarEl.src;
+      // allow adding methods now
+      document.getElementById("btn-add-method").disabled = false;
+      await renderMethods();
+    } catch(e){
+      console.warn("populateAccountInfo error", e);
+      document.getElementById("methods-not-connected").classList.remove("d-none");
+      document.getElementById("btn-add-method").disabled = true;
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // Back button + event hookups
+  document.addEventListener("DOMContentLoaded", async ()=> {
+    document.getElementById("nav-back-btn").addEventListener("click", ()=> {
+      if(document.referrer) history.back();
+      else window.location.href = "./index.html";
+    });
+
+    document.getElementById("btn-add-method").addEventListener("click", ()=> openMethodModal());
+    document.getElementById("btn-refresh-account").addEventListener("click", async ()=> {
+      await populateAccountInfo();
+    });
+
+    // initial populate
+    await populateAccountInfo();
+
+    // reload on focus / visibilitychange
+    window.addEventListener("focus", ()=> populateAccountInfo('navigate'));
+    document.addEventListener("visibilitychange", ()=> {
+      if(document.visibilityState === 'visible') populateAccountInfo('navigate');
+    });
+  });
+
+  </script>
+</body>
+</html>
