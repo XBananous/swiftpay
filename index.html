@@ -2,112 +2,127 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>SwiftPay — Gérer les moyens de paiement</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SwiftPay — Compte bancaire</title>
 
-  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Font Awesome -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 
   <style>
-    body{ background:#f8f9fa; -webkit-font-smoothing:antialiased; }
-    .card-method { cursor: default; }
-    .method-iban { font-family: monospace; letter-spacing: .02em; }
-    .section-title { display:flex; align-items:center; gap:.75rem; }
-    .avatar { width:56px; height:56px; border-radius:12px; object-fit:cover; }
-    #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 2147483640; display:flex; flex-direction:column; gap:.6rem; max-width: 360px; }
-    .modal-backdrop.show { opacity: .35; }
-    .section-icon { width:56px; height:56px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:#fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
-    .full-width-btn { width:100%; margin-top:1rem; }
-    #loading-overlay{ position:fixed; inset:0; background:rgba(255,255,255,0.6); z-index:2150000000; display:none; align-items:center; justify-content:center; }
-    #loading-inner{ display:flex; flex-direction:column; align-items:center; gap:.6rem; background:transparent; }
-    #loading-spinner{ width:4rem; height:4rem; }
-    .iban-help-valid { color: #0f5132; }   /* green-800 */
-    .iban-help-invalid { color: #842029; } /* red-800 */
-    @media (max-width:576px){ .avatar{ width:48px; height:48px } .section-icon{ width:48px; height:48px } }
+    body { background:#f8f9fa; -webkit-font-smoothing:antialiased; }
+    .card-section { border-radius:12px; }
+    .balance-big { font-size:2.25rem; font-weight:700; }
+    .small-note { font-size:.85rem; color:#6c757d; }
+    #loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.75); z-index:2200000000; display:none; align-items:center; justify-content:center; }
+    .transaction-type-credit { color:#0d6efd; font-weight:700; }
+    .transaction-type-debit { color:#dc3545; font-weight:700; }
+    .status-pending { background:#fff4e6; color:#7a4900; padding:.25rem .5rem; border-radius:8px; font-weight:700; }
+    .status-completed { background:#e7f3ff; color:#0b5ed7; padding:.25rem .5rem; border-radius:8px; font-weight:700; }
+    .status-failed { background:#f8d7da; color:#842029; padding:.25rem .5rem; border-radius:8px; font-weight:700; }
+    @media (max-width:576px){ .balance-big{ font-size:1.6rem } }
+    /* toast container */
+    #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 2250000000; display:flex; flex-direction:column; gap:.5rem; max-width:360px; }
   </style>
 </head>
 <body>
 
-  <!-- NAVBAR -->
   <nav class="navbar navbar-light bg-white shadow-sm">
     <div class="container d-flex align-items-center gap-2">
       <button id="nav-back-btn" class="btn btn-outline-secondary btn-sm" title="Retour">
         <i class="fa-solid fa-arrow-left"></i>
       </button>
-      <a class="navbar-brand mb-0 h1 d-flex align-items-center" href="#" title="SwiftPay">
-        <img src="logo.png" alt="logo" width="36" height="36">
-      </a>
-      <div class="ms-auto">
-        <button id="btn-refresh-account" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
+      <a class="navbar-brand ms-2" href="index.html"><img src="logo.png" alt="logo" width="36" height="36"></a>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <button id="btn-refresh" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
       </div>
     </div>
   </nav>
 
-  <!-- LOADING overlay -->
   <div id="loading-overlay" aria-hidden="true">
-    <div id="loading-inner">
-      <div id="loading-spinner" class="spinner-border text-primary" role="status" style="width:4rem;height:4rem"></div>
-      <div id="loading-message" class="fw-semibold">Chargement...</div>
-      <div id="loading-sub" class="small text-muted"></div>
+    <div class="text-center">
+      <div class="spinner-border text-primary" role="status" style="width:4rem;height:4rem"></div>
+      <div class="fw-semibold mt-3" id="loading-text">Chargement...</div>
     </div>
   </div>
 
   <main class="container py-4">
     <div class="row g-3">
 
-      <!-- Account -->
       <div class="col-12">
-        <div class="card p-3">
-          <div class="d-flex gap-3 align-items-center">
-            <div class="section-icon">
-              <img id="acct-avatar" src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" alt="avatar" style="width:100%;height:100%;object-fit:cover;border-radius:10px">
+        <div class="card card-section p-3">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:64px;height:64px;border-radius:12px;overflow:hidden;">
+              <img id="acct-avatar" src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" style="width:100%;height:100%;object-fit:cover">
             </div>
             <div class="flex-grow-1">
               <div class="fw-semibold" id="acct-username">Non connecté</div>
               <div class="small text-muted" id="acct-userid"></div>
-              <div class="small text-muted mt-2" id="acct-company"></div>
+              <div class="small text-muted mt-1" id="acct-company"></div>
+            </div>
+            <div class="text-end">
+              <div class="small text-muted">Solde courant</div>
+              <div class="balance-big" id="balance-current">0.00 €</div>
+              <div class="small-note">Solde à venir : <span id="balance-upcoming">0.00 €</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <div class="card card-section p-3 h-100">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">Envoyer un virement</div>
+              <div class="small-note mt-1">Envoi immédiat ou programmé. Les transactions programmées restent en <strong>pending</strong>.</div>
             </div>
             <div>
-              <!-- refresh button is in nav also, kept here for legacy -->
+              <button class="btn btn-primary" id="btn-send-transfer"><i class="fa-solid fa-arrow-right-from-bracket"></i> Envoyer</button>
             </div>
+          </div>
+
+          <hr>
+
+          <div class="d-grid gap-2">
+            <a id="btn-payment-methods" class="btn btn-outline-primary" href="payement_methods.html"><i class="fa-solid fa-credit-card"></i> Gérer moyens de paiement</a>
+            <button id="btn-view-history" class="btn btn-outline-secondary"><i class="fa-solid fa-list"></i> Voir l'historique complet</button>
           </div>
         </div>
       </div>
 
-      <!-- Add method -->
+      <div class="col-12 col-md-6">
+        <div class="card card-section p-3 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Historique récent</div>
+            <div class="small-note">Dernières transactions (local / supabase)</div>
+          </div>
+          <div id="transactions-list" style="max-height:420px;overflow:auto;"></div>
+        </div>
+      </div>
+
       <div class="col-12">
-        <div class="card p-3">
-          <div class="d-flex align-items-start gap-3">
-            <div class="section-icon"><i class="fa-solid fa-credit-card fa-lg text-primary"></i></div>
-            <div class="flex-grow-1">
-              <div class="fw-semibold">Gérer les moyens de paiement</div>
-              <div class="small text-muted mt-2">Ajoute ici des moyens (Prénom / Nom / IBAN / Adresse). Un moyen par défaut peut être défini.</div>
-              <button id="btn-add-method" class="btn btn-primary full-width-btn" disabled><i class="fa-solid fa-plus me-1"></i> Ajouter un moyen</button>
+        <div class="card card-section p-3">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">Solde & Prévisions</div>
+              <div class="small-note mt-1">Les virements programmés et les paiements en attente sont pris en compte dans le solde à venir.</div>
+            </div>
+            <div>
+              <div class="small-note">Synchronisation Supabase</div>
+              <div><span id="supabase-status" class="badge bg-secondary">Non initialisé</span></div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Methods list -->
-      <div class="col-12">
-        <div id="methods-empty" class="alert alert-info d-none">
-          Aucun moyen enregistré. Clique sur <strong>Ajouter un moyen</strong> pour commencer.
-        </div>
-        <div id="methods-not-connected" class="alert alert-warning d-none">
-          Connecte-toi (Discord) pour voir et gérer tes moyens de paiement.
-        </div>
-        <div id="methods-list" class="row g-3"></div>
-      </div>
+          <hr>
 
-      <!-- Info -->
-      <div class="col-12">
-        <div class="card p-3">
-          <div>
-            <div class="fw-semibold">Info</div>
-            <div class="small text-muted mt-2">Les moyens sont stockés dans Supabase (table <code>payment_methods</code>).</div>
-            <div class="small text-muted mt-1">SwiftPay applique une commission de 10% (affichée lors de la création de facture).</div>
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Solde courant</div>
+              <div id="card-balance-current" class="fs-4">0.00 €</div>
+            </div>
+            <div class="col-12 col-md-6">
+              <div class="fw-semibold">Solde à venir</div>
+              <div id="card-balance-upcoming" class="fs-4">0.00 €</div>
+            </div>
           </div>
         </div>
       </div>
@@ -115,508 +130,472 @@
     </div>
   </main>
 
-  <!-- Toasts -->
-  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-  <div id="toast-template" class="d-none">
-    <div class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
-        <div class="toast-body"></div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modals -->
-  <div class="modal fade" id="methodModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <!-- MODAL: Send transfer -->
+  <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <form id="method-form" class="modal-content">
+      <form id="transfer-form" class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="methodModalTitle">Ajouter un moyen de paiement</h5>
+          <h5 class="modal-title">Envoyer un virement</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <input type="hidden" id="method-edit-id" value="">
           <div class="mb-3">
-            <label class="form-label">Prénom</label>
-            <input id="method-firstname" class="form-control" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Nom</label>
-            <input id="method-name" class="form-control" required>
+            <label class="form-label">Montant (€)</label>
+            <input id="transfer-amount" type="number" step="0.01" min="0.01" class="form-control" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">IBAN</label>
-            <input id="method-iban" class="form-control" required placeholder="Ex: EU0000000000000">
-            <div id="iban-help" class="form-text small text-muted">Format attendu : <code>EU0000000000000</code></div>
+            <label class="form-label">IBAN destinataire</label>
+            <input id="transfer-iban" class="form-control" placeholder="Ex: EU0000000000000" required>
+            <div class="form-text small-note">Format : EU + 13 chiffres (ex: EU0000000000000)</div>
           </div>
           <div class="mb-3">
-            <label class="form-label">Adresse</label>
-            <input id="method-address" class="form-control" required placeholder="Adresse postale">
+            <label class="form-label">Motif</label>
+            <input id="transfer-desc" class="form-control" placeholder="Ex: Paiement fournisseur">
           </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="method-set-default">
-            <label class="form-check-label" for="method-set-default">Définir comme moyen par défaut</label>
+
+          <div class="mb-3">
+            <label class="form-label">Programmation</label>
+            <input id="transfer-scheduled" type="datetime-local" class="form-control">
+            <div class="form-text small-note">Laisser vide pour exécution immédiate.</div>
           </div>
+
+          <div class="form-check mb-2">
+            <input id="transfer-auto" class="form-check-input" type="checkbox">
+            <label class="form-check-label">Activer envoi automatique (répéter)</label>
+          </div>
+
+          <div id="repeat-options" class="d-none">
+            <label class="form-label">Intervalle de répétition</label>
+            <select id="transfer-repeat-interval" class="form-select">
+              <option value="">--Choisir--</option>
+              <option value="daily">Quotidien</option>
+              <option value="weekly">Hebdomadaire</option>
+              <option value="monthly">Mensuel</option>
+            </select>
+          </div>
+
+          <div class="small-note mt-2">Les virements programmés restent en statut <strong>pending</strong> jusqu'à traitement.</div>
         </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button type="submit" class="btn btn-primary" id="method-save-btn" disabled>Enregistrer</button>
+          <button type="submit" class="btn btn-primary" id="transfer-submit">Confirmer</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+  <!-- Modal: view all transactions -->
+  <div class="modal fade" id="transactionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
       <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Historique des transactions</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          <p id="confirmModalMessage" class="mb-3"></p>
-          <div class="d-flex gap-2 justify-content-end">
-            <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button id="confirmModalOk" class="btn btn-primary">Confirmer</button>
-          </div>
+          <div id="transactions-full-list" style="min-height:200px;"></div>
         </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
       </div>
     </div>
   </div>
 
-  <!-- Scripts -->
+  <div id="toast-container"></div>
+
+  <!-- Load Supabase dynamically with fallback -->
+  <script>
+  (function(){
+    const cdns = [
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+      "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"
+    ];
+    function loadScript(src){ return new Promise((resolve,reject)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=()=>resolve(); s.onerror=()=>reject(new Error('loadfail '+src)); document.head.appendChild(s); }); }
+    async function loadSupabaseLib(){
+      for(const url of cdns){
+        try { await loadScript(url); if((window.supabase && window.supabase.createClient) || window.supabase_js) return; } catch(e){ console.warn('supabase load failed', url, e); }
+      }
+      // if still not present, throw
+      throw new Error('Supabase lib non disponible');
+    }
+    // expose loader promise to global so next script can await
+    window.__supabase_loader = loadSupabaseLib();
+  })();
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 
   <script>
-  // =========================
-  // SwiftPay - Supabase integration
-  // =========================
+  (async function(){
+    // wait for supabase lib to be loaded, but don't block UI forever
+    try {
+      await Promise.race([ window.__supabase_loader, new Promise((res)=>setTimeout(res,3000)) ]);
+    } catch(e){
+      console.warn('supabase dynamic load failed', e);
+    }
 
-  // ---------- SUPABASE CONFIG (donné par toi) ----------
-  const SUPABASE_URL = "https://hqpewmimnllbjowvbljm.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxcGV3bWltbmxsYmpvd3ZibGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NDYzNzUsImV4cCI6MjA3NTUyMjM3NX0.BEdZuFYnJP7_14GFA8pYYq-gXRewphM49QP5NRWWHso";
-  const supabase = supabase_js.createClient ? supabase_js.createClient(SUPABASE_URL, SUPABASE_KEY) : supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  // Note: depending on the CDN global name, but the above handles common cases.
+    // try to initialize supabase client defensively
+    let supabaseClient = null;
+    const SUPABASE_URL = "https://hqpewmimnllbjowvbljm.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxcGV3bWltbmxsYmpvd3ZibGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NDYzNzUsImV4cCI6MjA3NTUyMjM3NX0.BEdZuFYnJP7_14GFA8pYYq-gXRewphM49QP5NRWWHso";
 
-  // ---------- UI helpers ----------
-  function showLoading(msg="Chargement...", sub="") {
-    const el = document.getElementById("loading-overlay");
-    document.getElementById("loading-message").textContent = msg;
-    document.getElementById("loading-sub").textContent = sub;
-    el.style.display = "flex";
-  }
-  function hideLoading(){ document.getElementById("loading-overlay").style.display = "none"; document.getElementById("loading-sub").textContent = ""; }
+    try {
+      if(window.supabase && typeof window.supabase.createClient === 'function'){
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      } else if(window.supabase_js && typeof window.supabase_js.createClient === 'function'){
+        supabaseClient = window.supabase_js.createClient(SUPABASE_URL, SUPABASE_KEY);
+      } else {
+        supabaseClient = null;
+      }
+    } catch(e){
+      console.warn('supabase init error', e);
+      supabaseClient = null;
+    }
 
-  function showToast(text, type="primary", ttl=3000){
-    const container = document.getElementById("toast-container");
-    const tpl = document.getElementById("toast-template").firstElementChild.cloneNode(true);
-    tpl.className = `toast align-items-center text-bg-${type} border-0`;
-    tpl.querySelector(".toast-body").textContent = text;
-    container.prepend(tpl);
-    const bs = new bootstrap.Toast(tpl, { delay: ttl });
-    bs.show();
-    tpl.addEventListener("hidden.bs.toast", ()=> tpl.remove());
-  }
+    // UI helpers
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    const toastContainer = document.getElementById('toast-container');
 
-  // Escape helper
-  function escapeHtml(s=""){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'", "&#039;"); }
+    function showLoading(msg="Chargement..."){ loadingText.textContent = msg; loadingOverlay.style.display = 'flex'; }
+    function hideLoading(){ loadingOverlay.style.display = 'none'; }
+    function showToast(text, type='primary', ttl=3500){
+      const div = document.createElement('div');
+      div.className = `toast align-items-center text-bg-${type} border-0 show`;
+      div.style.marginBottom = '.5rem';
+      div.innerHTML = `<div class="d-flex"><div class="toast-body">${text}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      toastContainer.prepend(div);
+      setTimeout(()=>div.remove(), ttl);
+    }
 
-  // ---------- IBAN helpers ----------
-  function normalizeIBAN(s = ""){ return s.replace(/\s+/g, "").toUpperCase(); }
-  function isIBAN_EU13(iban){
-    const n = normalizeIBAN(iban);
-    return /^EU\d{13}$/.test(n);
-  }
+    // local fallback storage key
+    const LOCAL_TX_KEY = 'swiftpay_local_transactions';
 
-  // ---------- Modal stacking / confirm (copied from ton code) ----------
-  function hideOpenModals(){
-    const shown = Array.from(document.querySelectorAll('.modal.show')).map(el => el.id).filter(Boolean);
-    shown.forEach(id => {
-      const el = document.getElementById(id);
-      bootstrap.Modal.getInstance(el)?.hide();
-    });
-    return shown;
-  }
-  function restoreHiddenModals(list){
-    if(!Array.isArray(list)) return;
-    setTimeout(()=> {
-      list.forEach(id => {
-        const el = document.getElementById(id);
-        if(el) new bootstrap.Modal(el).show();
+    function loadLocalTx(){ try { return JSON.parse(localStorage.getItem(LOCAL_TX_KEY) || "[]"); } catch { return []; } }
+    function saveLocalTx(arr){ localStorage.setItem(LOCAL_TX_KEY, JSON.stringify(arr)); }
+
+    // Discord token key per ton message
+    function isConnected(){ return !!localStorage.getItem('access_token_demo'); }
+    async function fetchDiscordUser(){
+      const token = localStorage.getItem('access_token_demo');
+      if(!token) throw new Error('no-token');
+      const r = await fetch('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${token}` }});
+      if(!r.ok) throw new Error('discord-fetch-failed');
+      return r.json();
+    }
+
+    // redirect if not connected
+    if(!isConnected()){ location.href = 'login.html'; return; }
+
+    // state
+    let currentUser = null;
+    let transactions = [];
+    let useSupabase = !!supabaseClient;
+
+    async function init(){
+      showLoading('Vérification du compte...');
+      try {
+        currentUser = await fetchDiscordUser();
+        document.getElementById('acct-username').textContent = currentUser.username || 'Utilisateur Discord';
+        document.getElementById('acct-userid').textContent = 'ID : ' + (currentUser.id || '');
+        const avatarEl = document.getElementById('acct-avatar');
+        if(currentUser.avatar) avatarEl.src = `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png?size=128`;
+
+        const sbStatus = document.getElementById('supabase-status');
+        if(useSupabase) { sbStatus.textContent = 'Supabase activé'; sbStatus.className = 'badge bg-success'; }
+        else { sbStatus.textContent = 'Mode local'; sbStatus.className = 'badge bg-secondary'; }
+
+        await loadTransactions();
+        renderBalances();
+        renderRecentTransactions();
+      } catch(e){
+        console.error(e);
+        // if Discord fetch fails, redirect to login
+        setTimeout(()=> location.href = 'login.html', 200);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function loadTransactions(){
+      showLoading('Chargement des transactions...');
+      try {
+        if(useSupabase && supabaseClient){
+          const { data, error } = await supabaseClient
+            .from('transactions')
+            .select('*')
+            .eq('user_id', String(currentUser.id))
+            .order('created_at', { ascending: false })
+            .limit(200);
+
+          if(error){
+            console.warn('Supabase read error', error);
+            useSupabase = false;
+            document.getElementById('supabase-status').textContent = 'Supabase erreur → mode local';
+            document.getElementById('supabase-status').className = 'badge bg-warning';
+            transactions = loadLocalTx();
+          } else {
+            transactions = (data || []).map(d => ({
+              id: d.id || ('tx_'+Date.now()),
+              user_id: d.user_id,
+              type: d.type || 'debit',
+              amount: Number(d.amount || 0),
+              status: d.status || 'pending',
+              iban: d.iban || '',
+              description: d.description || '',
+              scheduled_at: d.scheduled_at || null,
+              repeat_interval: d.repeat_interval || null,
+              created_at: d.created_at || new Date().toISOString()
+            }));
+            // mirror to local
+            saveLocalTx(transactions);
+          }
+        } else {
+          transactions = loadLocalTx();
+        }
+      } catch(e){
+        console.warn('loadTransactions error', e);
+        transactions = loadLocalTx();
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function computeBalances(){
+      const completed = transactions.filter(t => t.status === 'completed');
+      const pending = transactions.filter(t => t.status === 'pending' || t.scheduled_at);
+      const creditCompleted = completed.filter(t => t.type === 'credit').reduce((s,t)=>s+Number(t.amount||0),0);
+      const debitCompleted = completed.filter(t => t.type === 'debit').reduce((s,t)=>s+Number(t.amount||0),0);
+      const currentBalance = +(creditCompleted - debitCompleted).toFixed(2);
+      const pendingCredits = pending.filter(t => t.type === 'credit').reduce((s,t)=>s+Number(t.amount||0),0);
+      const pendingDebits = pending.filter(t => t.type === 'debit').reduce((s,t)=>s+Number(t.amount||0),0);
+      const upcomingBalance = +(currentBalance + pendingCredits - pendingDebits).toFixed(2);
+      return { currentBalance, upcomingBalance, pendingCount: pending.length };
+    }
+
+    function renderBalances(){
+      const { currentBalance, upcomingBalance } = computeBalances();
+      document.getElementById('balance-current').textContent = `${currentBalance.toFixed(2)} €`;
+      document.getElementById('card-balance-current').textContent = `${currentBalance.toFixed(2)} €`;
+      document.getElementById('balance-upcoming').textContent = `${upcomingBalance.toFixed(2)} €`;
+      document.getElementById('card-balance-upcoming').textContent = `${upcomingBalance.toFixed(2)} €`;
+    }
+
+    function renderRecentTransactions(){
+      const container = document.getElementById('transactions-list');
+      container.innerHTML = '';
+      if(!transactions || transactions.length === 0){
+        container.innerHTML = '<div class="small-note">Aucune transaction pour le moment.</div>';
+        return;
+      }
+      const recent = transactions.slice(0,8);
+      recent.forEach(tx => {
+        const div = document.createElement('div');
+        div.className = 'd-flex justify-content-between align-items-start gap-2 mb-2';
+        const left = document.createElement('div');
+        left.innerHTML = `<div><strong>${escapeHtml(tx.description || (tx.type==='credit' ? 'Ajout' : 'Retrait'))}</strong></div>
+                          <div class="small text-muted">${new Date(tx.created_at || tx.scheduled_at || Date.now()).toLocaleString()}</div>`;
+        const right = document.createElement('div');
+        const amt = (tx.type === 'credit' ? '+' : '-') + Number(tx.amount || 0).toFixed(2) + ' €';
+        const amtSpan = document.createElement('div');
+        amtSpan.innerText = amt;
+        amtSpan.className = tx.type === 'credit' ? 'transaction-type-credit' : 'transaction-type-debit';
+
+        const statusSpan = document.createElement('div');
+        statusSpan.className = tx.status === 'completed' ? 'status-completed' : (tx.status === 'failed' ? 'status-failed' : 'status-pending');
+        statusSpan.style.marginTop = '6px';
+        statusSpan.style.textAlign = 'right';
+        statusSpan.textContent = tx.status === 'completed' ? 'Terminé' : (tx.status === 'failed' ? 'Échec' : (tx.scheduled_at ? 'Programmé' : 'En attente'));
+
+        right.appendChild(amtSpan);
+        right.appendChild(statusSpan);
+
+        div.appendChild(left);
+        div.appendChild(right);
+
+        const actions = document.createElement('div');
+        actions.className = 'mt-1';
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn btn-sm btn-outline-danger ms-2';
+        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        btnDelete.title = 'Supprimer';
+        if(tx.status !== 'completed'){
+          btnDelete.disabled = true;
+        }
+        btnDelete.addEventListener('click', async () => {
+          const ok = await confirmModal('Supprimer cette transaction ?');
+          if(!ok) return;
+          await deleteTransaction(tx.id);
+        });
+        actions.appendChild(btnDelete);
+        div.appendChild(actions);
+
+        container.appendChild(div);
       });
-    }, 180);
-  }
-  function confirmModal(message){
-    return new Promise(resolve=>{
-      const parents = hideOpenModals();
-      const modalEl = document.getElementById("confirmModal");
-      const modal = new bootstrap.Modal(modalEl);
-      document.getElementById("confirmModalMessage").textContent = message;
-      const okBtn = document.getElementById("confirmModalOk");
-      let settled = false;
-      function okHandler(){
-        if(settled) return;
-        settled = true; modal.hide(); cleanup(); resolve(true);
+    }
+
+    function confirmModal(message){
+      return new Promise(resolve => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+          <div class="modal fade" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-body">
+                  <p>${escapeHtml(message)}</p>
+                  <div class="d-flex gap-2 justify-content-end">
+                    <button class="btn btn-secondary btn-cancel">Annuler</button>
+                    <button class="btn btn-primary btn-ok">Confirmer</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        document.body.appendChild(wrapper);
+        const mEl = wrapper.querySelector('.modal');
+        const bs = new bootstrap.Modal(mEl);
+        mEl.addEventListener('hidden.bs.modal', ()=> { wrapper.remove(); resolve(false); });
+        wrapper.querySelector('.btn-ok').addEventListener('click', ()=> { bs.hide(); resolve(true); });
+        wrapper.querySelector('.btn-cancel').addEventListener('click', ()=> { bs.hide(); resolve(false); });
+        bs.show();
+      });
+    }
+
+    async function deleteTransaction(id){
+      showLoading('Suppression...');
+      try {
+        if(useSupabase && supabaseClient){
+          const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
+          if(error) throw error;
+        }
+        transactions = transactions.filter(t => t.id !== id);
+        saveLocalTx(transactions);
+        renderRecentTransactions();
+        renderBalances();
+        showToast('Transaction supprimée','primary');
+      } catch(e){
+        console.warn('deleteTransaction error', e);
+        showToast('Impossible de supprimer la transaction (erreur)','danger');
+      } finally {
+        hideLoading();
       }
-      function hiddenHandler(){
-        if(settled) return;
-        settled = true; cleanup(); resolve(false);
+    }
+
+    async function createTransaction(tx){
+      showLoading('Enregistrement du virement...');
+      try {
+        if(useSupabase && supabaseClient){
+          const { error } = await supabaseClient.from('transactions').insert([tx]);
+          if(error) throw error;
+        }
+        transactions.unshift(tx);
+        saveLocalTx(transactions);
+        renderRecentTransactions();
+        renderBalances();
+        showToast('Virement enregistré', 'success');
+      } catch(e){
+        console.warn('createTransaction error', e);
+        transactions.unshift(tx);
+        saveLocalTx(transactions);
+        renderRecentTransactions();
+        renderBalances();
+        showToast('Virement enregistré localement (Supabase indisponible)', 'warning');
+      } finally {
+        hideLoading();
       }
-      function cleanup(){
-        okBtn.removeEventListener("click", okHandler);
-        modalEl.removeEventListener("hidden.bs.modal", hiddenHandler);
-        restoreHiddenModals(parents);
-      }
-      okBtn.addEventListener("click", okHandler);
-      modalEl.addEventListener("hidden.bs.modal", hiddenHandler);
-      modal.show();
+    }
+
+    // transfer modal handling
+    const transferModal = new bootstrap.Modal(document.getElementById('transferModal'));
+    document.getElementById('btn-send-transfer').addEventListener('click', ()=> transferModal.show());
+
+    const autoCheckbox = document.getElementById('transfer-auto');
+    autoCheckbox.addEventListener('change', () => {
+      const el = document.getElementById('repeat-options');
+      el.classList.toggle('d-none', !autoCheckbox.checked);
     });
-  }
 
-  // ---------- Discord helpers ----------
-  // Token is stored by ton flow in localStorage under "access_token_demo"
-  function getDiscordToken(){
-    return localStorage.getItem("access_token_demo") || null;
-  }
+    document.getElementById('transfer-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const amount = parseFloat(document.getElementById('transfer-amount').value);
+      const iban = document.getElementById('transfer-iban').value.trim();
+      const desc = document.getElementById('transfer-desc').value.trim() || 'Virement';
+      const scheduled = document.getElementById('transfer-scheduled').value || null;
+      const auto = document.getElementById('transfer-auto').checked;
+      const repeatInterval = document.getElementById('transfer-repeat-interval').value || null;
 
-  async function fetchDiscordProfile(){
-    const token = getDiscordToken();
-    if(!token) return null;
-    try {
-      const r = await fetch("https://discord.com/api/users/@me", { headers: { Authorization: `Bearer ${token}` }});
-      if(!r.ok) throw new Error("discord");
-      const u = await r.json();
-      return u;
-    } catch(e){
-      console.warn("discord fetch failed", e);
-      return null;
-    }
-  }
+      if(!amount || !isFinite(amount) || amount <= 0){ showToast('Montant invalide','warning'); return; }
+      if(!/^EU\d{13}$/.test(iban)){ showToast('IBAN invalide — format attendu EU0000000000000','warning'); return; }
 
-  // ---------- SUPABASE CRUD ----------
-  // Table expected: payment_methods
-  // recommended columns: id (int, pk), discord_id text, firstname text, name text, iban text, address text, is_default boolean, inserted_at timestamptz default now()
+      const tx = {
+        id: 'tx_' + Date.now().toString(),
+        user_id: String(currentUser.id),
+        type: 'debit',
+        amount: Number(amount.toFixed(2)),
+        status: (scheduled || auto) ? 'pending' : 'completed',
+        iban,
+        description: desc,
+        scheduled_at: scheduled || null,
+        repeat_interval: auto ? (repeatInterval || 'none') : null,
+        created_at: new Date().toISOString()
+      };
 
-  async function loadMethods(){
-    // Returns array of rows for the current discord user
-    const discord = await fetchDiscordProfile();
-    if(!discord || !discord.id) return [];
-    showLoading("Chargement des moyens...", "Récupération depuis Supabase");
-    try {
-      const { data, error } = await supabase
-        .from('payment_methods')
-        .select('*')
-        .eq('discord_id', discord.id)
-        .order('id', { ascending: true });
+      await createTransaction(tx);
+      transferModal.hide();
+    });
 
-      if(error){
-        console.error("Supabase select error", error);
-        showToast("Erreur lors de la récupération des moyens", "danger");
-        return [];
+    const transactionsModal = new bootstrap.Modal(document.getElementById('transactionsModal'));
+    document.getElementById('btn-view-history').addEventListener('click', ()=>{
+      renderFullTransactions();
+      transactionsModal.show();
+    });
+
+    function renderFullTransactions(){
+      const container = document.getElementById('transactions-full-list');
+      container.innerHTML = '';
+      if(!transactions || transactions.length === 0){
+        container.innerHTML = '<div class="small-note">Aucune transaction.</div>'; return;
       }
-      // Normalize field names to match existing front UI (firstname, name, iban, address, isDefault)
-      return (data || []).map(r => ({
-        id: r.id,
-        firstname: r.firstname,
-        name: r.name,
-        iban: r.iban,
-        address: r.address,
-        isDefault: !!r.is_default
-      }));
-    } finally {
-      hideLoading();
-    }
-  }
-
-  async function saveMethods(arr){
-    // arr = array of { firstname, name, iban, address, isDefault }
-    const discord = await fetchDiscordProfile();
-    if(!discord || !discord.id){
-      showToast("Non connecté à Discord", "warning");
-      return false;
-    }
-    showLoading("Enregistrement...", "Sauvegarde sur Supabase");
-    try {
-      // Start by deleting existing rows for user
-      const del = await supabase.from('payment_methods').delete().eq('discord_id', discord.id);
-      if(del.error){
-        console.warn("delete error (continuing):", del.error);
-        // continue anyway
-      }
-
-      // Normalize array and set discord_id, is_default -> is_default
-      const toInsert = arr.slice(0, 200).map(m => ({
-        discord_id: discord.id,
-        firstname: m.firstname,
-        name: m.name,
-        iban: m.iban,
-        address: m.address,
-        is_default: !!m.isDefault
-      }));
-      if(toInsert.length === 0){
-        // nothing to insert; done
-        return true;
-      }
-      const ins = await supabase.from('payment_methods').insert(toInsert);
-      if(ins.error){
-        console.error("Supabase insert error", ins.error);
-        showToast("Erreur lors de l'enregistrement", "danger");
-        return false;
-      }
-      return true;
-    } catch(e){
-      console.error("saveMethods failed", e);
-      showToast("Erreur lors de l'enregistrement", "danger");
-      return false;
-    } finally { hideLoading(); }
-  }
-
-  // ---------- Rendering & handlers ----------
-  async function renderMethods(){
-    const listEl = document.getElementById("methods-list");
-    const emptyEl = document.getElementById("methods-empty");
-    const notConnectedEl = document.getElementById("methods-not-connected");
-
-    const discord = await fetchDiscordProfile();
-    if(!discord || !discord.id){
-      listEl.innerHTML = "";
-      notConnectedEl.classList.remove("d-none");
-      emptyEl.classList.add("d-none");
-      document.getElementById("btn-add-method").disabled = true;
-      // update account UI
-      document.getElementById("acct-username").textContent = "Non connecté";
-      document.getElementById("acct-userid").textContent = "";
-      document.getElementById("acct-avatar").src = "https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg";
-      return;
-    } else {
-      notConnectedEl.classList.add("d-none");
-      document.getElementById("btn-add-method").disabled = false;
-    }
-
-    const arr = await loadMethods();
-    listEl.innerHTML = "";
-    if(arr.length === 0){
-      emptyEl.classList.remove("d-none");
-      return;
-    }
-    emptyEl.classList.add("d-none");
-
-    arr.forEach((m, idx) => {
-      const col = document.createElement("div");
-      col.className = "col-12 col-md-6";
-      const card = document.createElement("div");
-      card.className = "card card-method shadow-sm p-3";
-      card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <div class="fw-semibold">${escapeHtml(m.firstname)} ${escapeHtml(m.name)} ${m.isDefault ? `<span class="badge bg-success ms-2">Par défaut</span>` : ""}</div>
-            <div class="small text-muted method-iban">${escapeHtml(m.iban)}</div>
-            <div class="small text-muted mt-1">${escapeHtml(m.address)}</div>
-          </div>
-          <div class="d-flex flex-column align-items-end gap-2">
-            <div class="btn-group">
-              <button class="btn btn-sm btn-outline-secondary btn-edit" title="Modifier"><i class="fa-solid fa-pen"></i></button>
-              <button class="btn btn-sm btn-outline-primary btn-default" title="Définir par défaut"><i class="fa-solid fa-star"></i></button>
-              <button class="btn btn-sm btn-outline-danger btn-del" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+      transactions.forEach(tx => {
+        const div = document.createElement('div');
+        div.className = 'card mb-2 p-2';
+        div.innerHTML = `
+          <div class="d-flex justify-content-between">
+            <div>
+              <div><strong>${escapeHtml(tx.description || (tx.type === 'credit' ? 'Ajout' : 'Retrait'))}</strong></div>
+              <div class="small text-muted">${new Date(tx.created_at || tx.scheduled_at || Date.now()).toLocaleString()}</div>
+              <div class="small text-muted">IBAN: ${escapeHtml(tx.iban || '—')}</div>
+              ${tx.repeat_interval ? `<div class="small text-muted">Répétition: ${escapeHtml(tx.repeat_interval)}</div>` : ''}
+            </div>
+            <div class="text-end">
+              <div class="${tx.type==='credit' ? 'transaction-type-credit' : 'transaction-type-debit'}">${tx.type==='credit' ? '+' : '-'}${Number(tx.amount||0).toFixed(2)} €</div>
+              <div class="${tx.status === 'completed' ? 'status-completed' : (tx.status === 'failed' ? 'status-failed' : 'status-pending')} mt-2">${tx.status === 'completed' ? 'Terminé' : (tx.status === 'failed' ? 'Échec' : (tx.scheduled_at ? 'Programmé' : 'En attente'))}</div>
             </div>
           </div>
-        </div>
-      `;
-      card.querySelector(".btn-edit").addEventListener("click", ()=> openMethodModal(idx));
-      card.querySelector(".btn-default").addEventListener("click", ()=> setDefaultMethod(idx));
-      card.querySelector(".btn-del").addEventListener("click", async ()=>{
-        const ok = await confirmModal("Supprimer ce moyen de paiement ?");
-        if(!ok) return;
-        const methods = await loadMethods();
-        const wasDefault = !!methods[idx]?.isDefault;
-        methods.splice(idx, 1);
-        if(wasDefault && methods.length > 0) methods[0].isDefault = true;
-        await saveMethods(methods);
-        showToast("Moyen supprimé", "info");
-        renderMethods();
+        `;
+        container.appendChild(div);
       });
-      col.appendChild(card);
-      listEl.appendChild(col);
-    });
-  }
-
-  // Open add/edit modal
-  let methodModalInstance = null;
-  function openMethodModal(idx){
-    // idx undefined => add
-    (async ()=>{
-      const discord = await fetchDiscordProfile();
-      if(!discord || !discord.id){
-        showToast("Connecte-toi pour gérer les moyens", "warning");
-        return;
-      }
-
-      const parents = hideOpenModals();
-      const modalEl = document.getElementById("methodModal");
-      methodModalInstance = new bootstrap.Modal(modalEl, { backdrop: 'static' });
-
-      document.getElementById("method-form").reset();
-      document.getElementById("method-edit-id").value = "";
-      document.getElementById("method-set-default").checked = false;
-      document.getElementById("method-save-btn").disabled = true;
-      document.getElementById("iban-help").className = "form-text small text-muted";
-      document.getElementById("iban-help").textContent = "Format attendu : EU0000000000000.";
-
-      document.getElementById("methodModalTitle").textContent = (typeof idx === "number") ? "Modifier un moyen de paiement" : "Ajouter un moyen de paiement";
-      if(typeof idx === "number"){
-        const methods = await loadMethods();
-        const m = methods[idx];
-        if(m){
-          document.getElementById("method-firstname").value = m.firstname;
-          document.getElementById("method-name").value = m.name;
-          document.getElementById("method-iban").value = m.iban;
-          document.getElementById("method-address").value = m.address;
-          document.getElementById("method-edit-id").value = idx;
-          document.getElementById("method-set-default").checked = !!m.isDefault;
-        }
-      }
-
-      // inputs
-      const ibanInput = document.getElementById("method-iban");
-      const firstnameInput = document.getElementById("method-firstname");
-      const nameInput = document.getElementById("method-name");
-      const addressInput = document.getElementById("method-address");
-      function validateIBANField(){
-        const v = ibanInput.value.trim();
-        if(v === "") {
-          document.getElementById("iban-help").className = "form-text small text-muted";
-          document.getElementById("iban-help").textContent = "Format attendu : EU0000000000000.";
-        } else if(isIBAN_EU13(v)){
-          document.getElementById("iban-help").className = "form-text small iban-help-valid";
-          document.getElementById("iban-help").textContent = "IBAN conforme (EU + 13 chiffres).";
-        } else {
-          document.getElementById("iban-help").className = "form-text small iban-help-invalid";
-          document.getElementById("iban-help").textContent = "IBAN invalide — doit être du type EU0000000000000.";
-        }
-        const ok = firstnameInput.value.trim() && nameInput.value.trim() && addressInput.value.trim() && isIBAN_EU13(ibanInput.value);
-        document.getElementById("method-save-btn").disabled = !ok;
-      }
-      [ibanInput, firstnameInput, nameInput, addressInput].forEach(inp => {
-        inp.removeEventListener('input', validateIBANField);
-        inp.addEventListener('input', validateIBANField);
-      });
-
-      // submit handling
-      const form = document.getElementById("method-form");
-      if(form._handler) form.removeEventListener("submit", form._handler);
-      const handler = async function(e){
-        e.preventDefault();
-        const firstname = firstnameInput.value.trim();
-        const name = nameInput.value.trim();
-        const ibanRaw = ibanInput.value.trim();
-        const address = addressInput.value.trim();
-        const setDefault = document.getElementById("method-set-default").checked;
-        const iban = normalizeIBAN(ibanRaw);
-        if(!firstname || !name || !iban || !address){ showToast("Remplis tous les champs", "warning"); return; }
-        if(!isIBAN_EU13(iban)){ showToast("IBAN invalide (doit être EU + 13 chiffres)", "danger"); return; }
-        const id = document.getElementById("method-edit-id").value;
-        const arr = await loadMethods();
-        const record = { firstname, name, iban, address, isDefault: !!setDefault };
-        if(id === ""){
-          if(arr.length === 0 && !record.isDefault) record.isDefault = true;
-          if(record.isDefault) arr.forEach(x=> x.isDefault = false);
-          arr.push(record);
-        } else {
-          if(record.isDefault) arr.forEach(x=> x.isDefault = false);
-          arr[+id] = record;
-        }
-        if(!arr.some(x=>x.isDefault) && arr.length > 0) arr[0].isDefault = true;
-        methodModalInstance.hide();
-        const ok = await saveMethods(arr);
-        if(ok) showToast(id === "" ? "Moyen ajouté" : "Moyen mis à jour", "success");
-        else showToast("Erreur lors de l'enregistrement", "danger");
-        setTimeout(()=> {
-          renderMethods();
-          restoreHiddenModals(parents);
-        }, 220);
-      };
-      form.addEventListener("submit", handler);
-      form._handler = handler;
-
-      methodModalInstance.show();
-
-      modalEl.addEventListener("hidden.bs.modal", function onHidden(){
-        [ibanInput, firstnameInput, nameInput, addressInput].forEach(inp => inp.removeEventListener('input', validateIBANField));
-        restoreHiddenModals(parents);
-        modalEl.removeEventListener("hidden.bs.modal", onHidden);
-      });
-
-    })();
-  }
-
-  // set default method
-  async function setDefaultMethod(idx){
-    const methods = await loadMethods();
-    if(!methods[idx]) return;
-    methods.forEach((m,i)=> m.isDefault = (i === idx));
-    await saveMethods(methods);
-    showToast("Moyen défini par défaut", "success");
-    await renderMethods();
-  }
-
-  // populate account info & initial load
-  async function populateAccountInfo(){
-    const avatarEl = document.getElementById("acct-avatar");
-    const usernameEl = document.getElementById("acct-username");
-    const useridEl = document.getElementById("acct-userid");
-    const companyEl = document.getElementById("acct-company");
-
-    document.getElementById("methods-list").innerHTML = "";
-    document.getElementById("methods-empty").classList.add("d-none");
-    document.getElementById("methods-not-connected").classList.add("d-none");
-    document.getElementById("btn-add-method").disabled = true;
-
-    showLoading("Vérification compte...", "Récupération des informations Discord");
-    try {
-      const u = await fetchDiscordProfile();
-      if(!u){
-        avatarEl.src = "https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg";
-        usernameEl.textContent = "Non connecté";
-        useridEl.textContent = "";
-        companyEl.textContent = "";
-        document.getElementById("methods-not-connected").classList.remove("d-none");
-        document.getElementById("btn-add-method").disabled = true;
-        return;
-      }
-      usernameEl.textContent = u.username ? `${u.username}#${u.discriminator}` : "Utilisateur Discord";
-      useridEl.textContent = `ID: ${u.id || ""}`;
-      avatarEl.src = u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128` : avatarEl.src;
-      // allow adding methods now
-      document.getElementById("btn-add-method").disabled = false;
-      await renderMethods();
-    } catch(e){
-      console.warn("populateAccountInfo error", e);
-      document.getElementById("methods-not-connected").classList.remove("d-none");
-      document.getElementById("btn-add-method").disabled = true;
-    } finally {
-      hideLoading();
     }
-  }
 
-  // Back button + event hookups
-  document.addEventListener("DOMContentLoaded", async ()=> {
-    document.getElementById("nav-back-btn").addEventListener("click", ()=> {
-      if(document.referrer) history.back();
-      else window.location.href = "./index.html";
+    document.getElementById('btn-refresh').addEventListener('click', async ()=>{
+      showLoading('Rafraîchissement...');
+      await loadTransactions();
+      renderBalances();
+      renderRecentTransactions();
+      hideLoading();
+      showToast('Données actualisées', 'primary');
     });
 
-    document.getElementById("btn-add-method").addEventListener("click", ()=> openMethodModal());
-    document.getElementById("btn-refresh-account").addEventListener("click", async ()=> {
-      await populateAccountInfo();
+    document.getElementById('nav-back-btn').addEventListener('click', ()=> {
+      if(document.referrer) history.back(); else window.location.href = 'index.html';
     });
 
-    // initial populate
-    await populateAccountInfo();
+    function escapeHtml(s=''){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
 
-    // reload on focus / visibilitychange
-    window.addEventListener("focus", ()=> populateAccountInfo('navigate'));
-    document.addEventListener("visibilitychange", ()=> {
-      if(document.visibilityState === 'visible') populateAccountInfo('navigate');
-    });
-  });
+    // initial load
+    window.addEventListener('load', init);
 
+    // expose debug
+    window.__swiftpay_bank_debug = { loadTransactions, transactions };
+
+  })();
   </script>
 </body>
 </html>
