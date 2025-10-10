@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Swift Pay — Connexion Discord</title>
 
   <!-- Bootstrap CSS -->
@@ -13,21 +13,21 @@
 
   <style>
     body { background: #f8f9fa; }
-    .card { max-width: 720px; margin: 48px auto; }
+    .card { max-width: 840px; margin: 48px auto; }
     .logo {
-      width: 48px; height: 48px; display:inline-block; vertical-align:middle;
-      border-radius:8px; background:linear-gradient(135deg,#4f46e5,#06b6d4);
-      color:white; text-align:center; line-height:48px; font-weight:700;
+      width: 56px; height: 56px; display:inline-block; vertical-align:middle;
+      border-radius:10px; background:linear-gradient(135deg,#4f46e5,#06b6d4);
+      color:white; text-align:center; line-height:56px; font-weight:700;
     }
-    .mono { font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial; letter-spacing: .3px; }
     .small-muted { color:#6c757d; }
+    img.avatar { border-radius:8px; object-fit:cover; }
   </style>
 </head>
 <body>
   <div class="card shadow-sm">
     <div class="card-body">
       <div class="d-flex align-items-center mb-4">
-        <div class="logo me-3"><i class="fa-solid fa-bolt" style="line-height:48px"></i></div>
+        <div class="logo me-3"><i class="fa-solid fa-bolt" style="line-height:56px"></i></div>
         <div>
           <h4 class="mb-0">Swift Pay</h4>
           <div class="small-muted">Connexion via Discord</div>
@@ -35,7 +35,6 @@
       </div>
 
       <div id="stage">
-        <!-- État initial : bouton de connexion -->
         <div id="initial" class="text-center">
           <p class="mb-3">Connecte-toi avec ton compte Discord pour continuer.</p>
           <button id="btn-discord" class="btn btn-primary btn-lg">
@@ -44,22 +43,23 @@
           <div class="mt-3 small-muted">En cliquant, tu seras redirigé vers Discord pour autoriser Swift Pay.</div>
         </div>
 
-        <!-- Après connexion : affichage utilisateur / formulaire -->
+        <div id="loading" style="display:none;" class="text-center mt-3">
+          <div class="spinner-border" role="status"><span class="visually-hidden">Chargement...</span></div>
+          <div class="mt-2 small-muted">Chargement…</div>
+        </div>
+
         <div id="logged" style="display:none;">
           <div id="user-info" class="mb-3"></div>
 
           <div id="account-exists" style="display:none;">
-            <div class="alert alert-success">
-              Un compte lié à ce Discord a été trouvé.
-            </div>
+            <div class="alert alert-success">Un compte lié à ce Discord a été trouvé.</div>
             <div id="existing-data" class="mb-3"></div>
             <a id="go-main-existing" href="main.html" class="btn btn-success">Aller vers main.html</a>
+            <button id="btn-signout-existing" class="btn btn-outline-secondary ms-2">Se déconnecter</button>
           </div>
 
           <div id="account-create" style="display:none;">
-            <div class="alert alert-warning">
-              Aucun compte associé. Merci de renseigner les informations pour créer ton compte Swift Pay.
-            </div>
+            <div class="alert alert-warning">Aucun compte associé. Merci de renseigner les informations pour créer ton compte Swift Pay.</div>
 
             <form id="create-form">
               <div class="row">
@@ -83,17 +83,10 @@
               </div>
             </form>
           </div>
-
         </div>
 
-        <!-- Erreur -->
         <div id="error" style="display:none;" class="mt-3">
           <div class="alert alert-danger" id="error-msg"></div>
-        </div>
-
-        <div id="loading" style="display:none;" class="text-center mt-3">
-          <div class="spinner-border" role="status"><span class="visually-hidden">Chargement...</span></div>
-          <div class="mt-2 small-muted">Chargement…</div>
         </div>
       </div>
 
@@ -102,7 +95,7 @@
     </div>
   </div>
 
-  <!-- Supabase JS -->
+  <!-- Supabase JS (expose window.supabase.createClient) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.27.0/dist/supabase.min.js"></script>
 
   <!-- Bootstrap JS -->
@@ -115,27 +108,20 @@
 
     // Discord OAuth2 configuration (implicit flow)
     const DISCORD_CLIENT_ID = "1421903774066282518";
-    // NOTE: on ne met PAS le client secret côté client.
-    // redirect_uri doit être celui enregistré dans l'app Discord :
-    const DISCORD_REDIRECT_URI = "http://localhost:9898/Local/SWIFT%20PAY/bankaccount.html";
-    const DISCORD_SCOPES = ["identify","email"]; // email est optionnel mais utile
+    const DISCORD_REDIRECT_URI = "http://localhost:9898/Local/SWIFT%20PAY/bankaccount.html"; // tel que fourni
+    const DISCORD_SCOPES = ["identify","email"];
 
-    // Create supabase client dès l'arrivée (exigé par ta demande)
-    const supabase = supabaseLib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Create supabase client dès l'arrivée (correction : utiliser window.supabase)
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // ========== UTILITAIRES ==========
-    function show(id) {
-      document.getElementById(id).style.display = "";
-    }
-    function hide(id) {
-      document.getElementById(id).style.display = "none";
-    }
+    function show(id) { document.getElementById(id).style.display = ""; }
+    function hide(id) { document.getElementById(id).style.display = "none"; }
     function setError(msg) {
       document.getElementById("error-msg").textContent = msg;
       show("error");
     }
 
-    // Parse hash fragment for implicit token
     function parseHash(hash) {
       if (!hash) return {};
       if (hash.startsWith("#")) hash = hash.substring(1);
@@ -146,29 +132,29 @@
       }, {});
     }
 
-    // Build Discord authorize URL (implicit)
     function discordAuthUrl() {
       const base = "https://discord.com/api/oauth2/authorize";
       const params = new URLSearchParams({
         client_id: DISCORD_CLIENT_ID,
         redirect_uri: DISCORD_REDIRECT_URI,
-        response_type: "token", // implicit grant (front-end)
+        response_type: "token",
         scope: DISCORD_SCOPES.join(" "),
         prompt: "consent"
       });
       return base + "?" + params.toString();
     }
 
-    // Fetch Discord user with token
     async function fetchDiscordUser(token) {
       const res = await fetch("https://discord.com/api/users/@me", {
         headers: { Authorization: "Bearer " + token }
       });
-      if (!res.ok) throw new Error("Impossible de récupérer les informations Discord (" + res.status + ")");
+      if (!res.ok) {
+        const text = await res.text().catch(()=>"");
+        throw new Error("Impossible de récupérer les informations Discord (" + res.status + "): " + text);
+      }
       return await res.json();
     }
 
-    // Vérifier si compte existe dans Supabase
     async function fetchAccountByDiscordId(discordId) {
       const { data, error } = await supabase
         .from("accounts")
@@ -179,7 +165,6 @@
       return data && data.length ? data[0] : null;
     }
 
-    // Créer compte dans Supabase
     async function createAccount(payload) {
       const { data, error } = await supabase
         .from("accounts")
@@ -190,14 +175,17 @@
       return data && data.length ? data[0] : null;
     }
 
-    // ========== LOGIQUE UI ==========
+    // ========== HANDLERS ==========
     document.getElementById("btn-discord").addEventListener("click", () => {
-      // redirige vers Discord pour autorisation
       window.location.href = discordAuthUrl();
     });
 
     document.getElementById("btn-signout").addEventListener("click", () => {
-      // simple: on efface le fragment et recharge
+      history.replaceState(null, "", location.pathname + location.search);
+      location.reload();
+    });
+
+    document.getElementById("btn-signout-existing").addEventListener("click", () => {
       history.replaceState(null, "", location.pathname + location.search);
       location.reload();
     });
@@ -206,17 +194,13 @@
       ev.preventDefault();
       hide("error");
       show("loading");
-
       try {
         const first_name = document.getElementById("first_name").value.trim();
         const last_name = document.getElementById("last_name").value.trim();
         const address = document.getElementById("address").value.trim();
 
-        if (!first_name || !last_name) {
-          throw new Error("Prénom et nom sont requis.");
-        }
+        if (!first_name || !last_name) throw new Error("Prénom et nom sont requis.");
 
-        // Enregistrer dans Supabase : structure d'exemple (ajuste selon ton schéma)
         const payload = {
           discord_id: window.__discordUser.id,
           discord_username: window.__discordUser.username + "#" + window.__discordUser.discriminator,
@@ -239,41 +223,36 @@
       }
     });
 
-    // ========== DÉBUT : traitement au chargement ==========
+    // ========== INITIALISATION ==========
     (async function init() {
-      // Supabase est déjà initialisé ci-dessus (exigé)
       hide("loading");
       hide("logged");
       hide("account-exists");
       hide("account-create");
       hide("error");
 
-      // Si on arrive avec un token dans le hash (implicit grant)
+      // lire token si présent dans le fragment de l'URL (implicit grant)
       const fragment = parseHash(location.hash);
       const accessToken = fragment.access_token || null;
 
       if (!accessToken) {
-        // Pas encore connecté : garder l'écran initial visible
         show("initial");
         return;
       }
 
-      // Nous avons un access token → récupérer l'utilisateur Discord
+      // on a un token → récupérer l'utilisateur Discord
       show("loading");
       hide("initial");
 
       try {
         const discordUser = await fetchDiscordUser(accessToken);
-        // stocker globalement pour usage lors de la création
         window.__discordUser = discordUser;
 
-        // Afficher les informations basiques
-        const userInfoDiv = document.getElementById("user-info");
-        const avatarUrl = discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null;
-        userInfoDiv.innerHTML = `
+        const avatarUrl = discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : 'https://via.placeholder.com/64';
+        document.getElementById("user-info").innerHTML = `
           <div class="d-flex align-items-center mb-3">
             <div class="me-3">
-              <img src="${avatarUrl || 'https://via.placeholder.com/48'}" alt="avatar" width="64" height="64" style="border-radius:8px">
+              <img src="${avatarUrl}" alt="avatar" width="80" height="80" class="avatar">
             </div>
             <div>
               <div><strong>${discordUser.username}#${discordUser.discriminator}</strong></div>
@@ -283,16 +262,14 @@
           </div>
         `;
 
-        // Vérifier Supabase
+        // vérifier dans Supabase
         const existing = await fetchAccountByDiscordId(discordUser.id);
         hide("loading");
         show("logged");
 
         if (existing) {
-          // afficher données existantes
           show("account-exists");
-          const existingDiv = document.getElementById("existing-data");
-          existingDiv.innerHTML = `
+          document.getElementById("existing-data").innerHTML = `
             <table class="table table-sm">
               <tr><th>Prénom</th><td>${existing.first_name || ""}</td></tr>
               <tr><th>Nom</th><td>${existing.last_name || ""}</td></tr>
@@ -301,22 +278,19 @@
             </table>
           `;
         } else {
-          // proposer création de compte ; préremplir prénom/nom si possible
           show("account-create");
           const fn = document.getElementById("first_name");
           const ln = document.getElementById("last_name");
 
-          // Aucun champ 'name' certain depuis Discord ; on peut tenter de répartir selon 'global_name' ou username
           if (discordUser.global_name) {
-            fn.value = discordUser.global_name.split(" ")[0] || "";
-            ln.value = discordUser.global_name.split(" ").slice(1).join(" ") || "";
+            const parts = discordUser.global_name.split(" ");
+            fn.value = parts[0] || "";
+            ln.value = parts.slice(1).join(" ") || "";
           } else {
-            // tenter de remplir prénom = username, laisser nom vide
             fn.value = discordUser.username || "";
             ln.value = "";
           }
         }
-
       } catch (err) {
         hide("loading");
         setError("Erreur lors de la récupération des données Discord : " + (err.message || err));
