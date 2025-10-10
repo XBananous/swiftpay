@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>SwiftPay — Mon Compte</title>
+  <title>SwiftPay — Compte bancaire</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 
   <style>
+    /* Layout : sections empilées (même sur PC) */
     body { background:#f8f9fa; -webkit-font-smoothing:antialiased; }
-    .card-section { border-radius:12px; }
+    .card-section { border-radius:12px; margin-bottom:1rem; }
     .balance-big { font-size:2.25rem; font-weight:700; }
     .small-note { font-size:.85rem; color:#6c757d; }
-    #loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.8); z-index:2200000000; display:none; align-items:center; justify-content:center; }
+    #loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.85); z-index:2200000000; display:none; align-items:center; justify-content:center; }
     .transaction-type-credit { color:#0d6efd; font-weight:700; }
     .transaction-type-debit { color:#dc3545; font-weight:700; }
     .status-completed { background:#e7f3ff; color:#0b5ed7; padding:.25rem .5rem; border-radius:8px; font-weight:700; display:inline-block; }
@@ -29,10 +30,8 @@
     .suggestion-avatar { width:36px; height:36px; border-radius:6px; object-fit:cover; }
     .scheduled-list { max-height:320px; overflow:auto; }
     .badge-scheduled { background:#ffdce0; color:#842029; font-weight:700; border-radius:6px; padding:.25rem .5rem; display:inline-block; margin-top:.25rem;}
+    .navbar-title { font-weight:700; font-size:1.05rem; margin-left:.5rem; }
     @media (max-width:576px){ .balance-big{ font-size:1.6rem } .filters-row{ flex-direction:column; align-items:stretch } }
-    /* Navbar adjustments for PC */
-    .navbar-brand .logo { width:36px; height:36px; margin-right:.5rem; }
-    .navbar-title { font-weight:700; font-size:1.05rem; }
   </style>
 </head>
 <body>
@@ -40,8 +39,8 @@
   <nav class="navbar navbar-light bg-white shadow-sm">
     <div class="container d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center">
-        <img src="logo.png" alt="logo" class="logo" style="width:36px;height:36px">
-        <div class="navbar-title ms-2">SwiftPay</div>
+        <img src="logo.png" alt="logo" style="width:36px;height:36px">
+        <div class="navbar-title">SwiftPay</div>
       </div>
       <div class="d-flex align-items-center gap-2">
         <a class="btn btn-outline-secondary btn-sm" id="btn-my-account">Mon compte</a>
@@ -62,106 +61,93 @@
       <div class="small-note">Les opérations d'envoi sont désactivées tant que la connexion n'est pas rétablie.</div>
     </div>
 
-    <div class="row g-3">
-
-      <!-- Compte -->
-      <div class="col-12 col-md-7">
-        <div class="card card-section p-3">
-          <div class="d-flex gap-3 align-items-start">
-            <div style="width:64px;height:64px;border-radius:12px;overflow:hidden;">
-              <img id="acct-avatar" src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" style="width:100%;height:100%;object-fit:cover">
-            </div>
-            <div class="flex-grow-1">
-              <div class="fw-semibold" id="acct-username">Non connecté</div>
-              <div class="small text-muted" id="acct-userid"></div>
-              <div class="small text-muted mt-1" id="acct-company"></div>
-            </div>
-            <div class="text-end">
-              <button id="btn-refresh-account-right" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
-            </div>
-          </div>
+    <!-- SECTION : Compte (empilé) -->
+    <div class="card card-section p-3">
+      <div class="d-flex gap-3 align-items-start">
+        <div style="width:64px;height:64px;border-radius:12px;overflow:hidden;">
+          <img id="acct-avatar" src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-semibold" id="acct-username">Non connecté</div>
+          <div class="small text-muted" id="acct-userid"></div>
+          <div class="small text-muted mt-1" id="acct-company"></div>
+        </div>
+        <div class="text-end">
+          <button id="btn-refresh-account-right" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
         </div>
       </div>
-
-      <!-- Solde et IBAN -->
-      <div class="col-12 col-md-5">
-        <div class="card card-section p-3">
-          <div class="text-end">
-            <div class="small-note">Solde courant</div>
-            <div class="balance-big" id="balance-current">0.00 €</div>
-            <div class="small-note" id="balance-updated">Dernière synchronisation : —</div>
-
-            <div class="small-note mt-3">Solde à venir</div>
-            <div class="fw-semibold" id="balance-upcoming">— €</div>
-          </div>
-
-          <hr>
-
-          <div class="mt-2">
-            <div class="fw-semibold small mb-1">IBAN (ton compte)</div>
-            <div class="input-group iban-input-group">
-              <input id="acct-iban" class="form-control form-control-sm" readonly>
-              <button id="btn-copy-iban" class="btn btn-outline-primary btn-copy" title="Copier l'IBAN"><i class="fa-regular fa-copy"></i></button>
-            </div>
-            <div class="small-note mt-2">IBAN = <code>EU</code> + ID Discord complet (ex: <code>EU123456789012345678</code>).</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Actions (Envoyer en haut) -->
-      <div class="col-12 col-md-6">
-        <div class="card card-section p-3 h-100">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <div>
-              <div class="fw-semibold">Actions</div>
-              <div class="small-note mt-1">Opérations disponibles</div>
-            </div>
-          </div>
-
-          <!-- Envoyer placé ici, en premier -->
-          <div class="mb-3">
-            <button id="btn-send-transfer" class="btn btn-primary btn-send w-100"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Envoyer un virement</button>
-          </div>
-
-          <hr>
-
-          <div class="d-grid gap-2">
-            <a id="btn-payment-methods" class="btn btn-outline-primary" href="payement_methods.html"><i class="fa-solid fa-credit-card me-2"></i>Gérer moyens de paiement</a>
-            <button id="btn-mes-factures" class="btn btn-outline-secondary"><i class="fa-solid fa-file-invoice-dollar me-2"></i>Mes factures</button>
-            <button id="btn-repeat-last" class="btn btn-outline-secondary"><i class="fa-solid fa-repeat me-2"></i>Répéter le dernier virement</button>
-            <button id="btn-scheduled" class="btn btn-outline-secondary"><i class="fa-solid fa-calendar-plus me-2"></i>Virements programmés</button>
-            <button id="btn-view-history" class="btn btn-outline-secondary"><i class="fa-solid fa-list me-2"></i>Voir l'historique complet</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Historique récent + filtres -->
-      <div class="col-12 col-md-6">
-        <div class="card card-section p-3 h-100">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="fw-semibold">Historique récent</div>
-            <div class="small-note">Dernières transactions</div>
-          </div>
-
-          <!-- Filters -->
-          <div class="filters-row mb-2">
-            <select id="tx-filter-type" class="form-select form-select-sm" style="max-width:160px;">
-              <option value="all">Tous</option>
-              <option value="debit">Débit</option>
-              <option value="credit">Crédit</option>
-            </select>
-            <input id="tx-filter-q" class="form-control form-control-sm" placeholder="Rechercher IBAN ou libellé" />
-            <button id="tx-filter-clear" class="btn btn-sm btn-outline-secondary">Effacer</button>
-          </div>
-
-          <div id="transactions-list" style="max-height:420px;overflow:auto;"></div>
-        </div>
-      </div>
-
     </div>
+
+    <!-- SECTION : Solde & IBAN (empilé) -->
+    <div class="card card-section p-3">
+      <div class="text-end">
+        <div class="small-note">Solde courant</div>
+        <div class="balance-big" id="balance-current">0.00 €</div>
+        <div class="small-note" id="balance-updated">Dernière synchronisation : —</div>
+
+        <div class="small-note mt-3">Solde à venir</div>
+        <div class="fw-semibold" id="balance-upcoming">— €</div>
+      </div>
+
+      <hr>
+
+      <div class="mt-2">
+        <div class="fw-semibold small mb-1">IBAN (ton compte)</div>
+        <div class="input-group iban-input-group">
+          <input id="acct-iban" class="form-control form-control-sm" readonly>
+          <button id="btn-copy-iban" class="btn btn-outline-primary btn-copy" title="Copier l'IBAN"><i class="fa-regular fa-copy"></i></button>
+        </div>
+        <div class="small-note mt-2">IBAN = <code>EU</code> + ID Discord complet (ex: <code>EU123456789012345678</code>).</div>
+      </div>
+    </div>
+
+    <!-- SECTION : Actions (empilé) -->
+    <div class="card card-section p-3">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <div class="fw-semibold">Actions</div>
+          <div class="small-note mt-1">Opérations disponibles</div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <button id="btn-send-transfer" class="btn btn-primary btn-send w-100"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Envoyer un virement</button>
+      </div>
+
+      <hr>
+
+      <div class="d-grid gap-2">
+        <a id="btn-payment-methods" class="btn btn-outline-primary" href="payement_methods.html"><i class="fa-solid fa-credit-card me-2"></i>Gérer moyens de paiement</a>
+        <button id="btn-mes-factures" class="btn btn-outline-secondary"><i class="fa-solid fa-file-invoice-dollar me-2"></i>Mes factures</button>
+        <button id="btn-repeat-last" class="btn btn-outline-secondary"><i class="fa-solid fa-repeat me-2"></i>Répéter le dernier virement</button>
+        <button id="btn-scheduled" class="btn btn-outline-secondary"><i class="fa-solid fa-calendar-plus me-2"></i>Virements programmés</button>
+        <button id="btn-view-history" class="btn btn-outline-secondary"><i class="fa-solid fa-list me-2"></i>Voir l'historique complet</button>
+      </div>
+    </div>
+
+    <!-- SECTION : Historique (empilé) -->
+    <div class="card card-section p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="fw-semibold">Historique récent</div>
+        <div class="small-note">Dernières transactions</div>
+      </div>
+
+      <div class="filters-row mb-2">
+        <select id="tx-filter-type" class="form-select form-select-sm" style="max-width:160px;">
+          <option value="all">Tous</option>
+          <option value="debit">Débit</option>
+          <option value="credit">Crédit</option>
+        </select>
+        <input id="tx-filter-q" class="form-control form-control-sm" placeholder="Rechercher IBAN ou libellé" />
+        <button id="tx-filter-clear" class="btn btn-sm btn-outline-secondary">Effacer</button>
+      </div>
+
+      <div id="transactions-list" style="max-height:420px;overflow:auto;"></div>
+    </div>
+
   </main>
 
-  <!-- MODAL : Send transfer (gère aussi programmation) -->
+  <!-- MODAL : Send transfer -->
   <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <form id="transfer-form" class="modal-content">
@@ -209,20 +195,7 @@
     </div>
   </div>
 
-  <!-- Modal: all transactions (lecture seule) -->
-  <div class="modal fade" id="transactionsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable modal-lg">
-      <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title">Historique complet</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div id="transactions-full-list"></div>
-        </div>
-        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: scheduled transfers management -->
+  <!-- scheduled modal -->
   <div class="modal fade" id="scheduledModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable">
       <div class="modal-content">
@@ -236,18 +209,28 @@
     </div>
   </div>
 
+  <!-- full history modal -->
+  <div class="modal fade" id="transactionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Historique complet</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><div id="transactions-full-list"></div></div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
+  <!-- Supabase UMD will be loaded dynamically if not present -->
   <script>
   (function(){
-    // ---- config (tes infos) ----
+    /* ========== CONFIG - fourni par toi ========== */
     const SUPABASE_URL = "https://hqpewmimnllbjowvbljm.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxcGV3bWltbmxsYmpvd3ZibGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NDYzNzUsImV4cCI6MjA3NTUyMjM3NX0.BEdZuFYnJP7_14GFA8pYYq-gXRewphM49QP5NRWWHso";
 
-    // ---- UI helpers ----
+    /* ========== UI helpers ========== */
     const toastContainer = document.getElementById('toast-container');
     function showToast(text,type='primary',ttl=3500){
       const el = document.createElement('div');
@@ -261,7 +244,7 @@
     function hideLoading(){ document.getElementById('loading-overlay').style.display = 'none'; }
     function escapeHtml(s=''){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
 
-    // ---- token / discord ----
+    /* ========== Discord token & fetcher ========== */
     function getDiscordToken(){ return localStorage.getItem('access_token_demo') || null; }
     async function fetchDiscordUser(){
       const token = getDiscordToken();
@@ -271,151 +254,146 @@
       return r.json();
     }
 
-    // ---- supabase init ----
+    /* ========== Supabase dynamic loader & client init (robuste) ========== */
     let supabase = null;
-    try {
+    async function ensureSupabaseClient(){
+      // if already created, return it
+      if(supabase && typeof supabase.from === 'function') return supabase;
+      // if global present, use it
       if(window.supabase && typeof window.supabase.createClient === 'function'){
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      } else { supabase = null; console.warn('Supabase UMD not available'); }
-    } catch(e){ supabase = null; console.error(e); }
+        return supabase;
+      }
+      // otherwise, try to dynamically load the UMD script, then create client
+      return new Promise((resolve, reject)=>{
+        const existing = document.querySelector('script[data-supabase-dyn]');
+        if(existing){
+          existing.addEventListener('load', () => {
+            try { supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); resolve(supabase); } catch(e){ reject(e); }
+          });
+          existing.addEventListener('error', (e)=> reject(e));
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+        s.async = true;
+        s.dataset.supabaseDyn = '1';
+        s.onload = () => {
+          try { if(window.supabase && typeof window.supabase.createClient === 'function'){ supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); resolve(supabase); } else reject(new Error('supabase global missing after load')); }
+          catch(e){ reject(e); }
+        };
+        s.onerror = (e) => reject(new Error('Failed to load Supabase script'));
+        document.head.appendChild(s);
+      });
+    }
 
-    let dbAvailable = !!supabase;
+    /* ========== App state ========== */
+    let dbAvailable = false;
     let currentUser = null;
     let account = null;
     let transactions = [];
 
-    // ---- suggestions for IBAN typed (autocomplete) ----
-    let suggestionTimer = null;
-    async function fetchIbanSuggestions(q){
-      if(!dbAvailable) return [];
-      if(!q || q.length < 2) return [];
-      try {
-        const { data, error } = await supabase
-          .from('accounts')
-          .select('user_id,iban,avatar,username')
-          .or(`iban.ilike.%${q}%,user_id.ilike.%${q}%`)
-          .limit(8);
-        if(error) { console.warn('suggest fetch error', error); return []; }
-        return data || [];
-      } catch(e){
-        console.warn('suggest fetch failed', e);
-        return [];
-      }
-    }
-    function showSuggestions(items){
-      const box = document.getElementById('iban-suggestions');
-      box.innerHTML = '';
-      if(!items || items.length === 0){ box.classList.add('d-none'); return; }
-      items.forEach(it => {
-        const div = document.createElement('div');
-        div.className = 'suggestion-item';
-        div.innerHTML = `
-          <img class="suggestion-avatar" src="${it.avatar ? escapeHtml(it.avatar) : 'https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg'}" alt="">
-          <div>
-            <div style="font-weight:600">${escapeHtml(it.iban)}</div>
-            <div class="small text-muted">ID: ${escapeHtml(it.user_id)}${it.username ? ' • ' + escapeHtml(it.username) : ''}</div>
-          </div>
-        `;
-        div.addEventListener('click', ()=>{
-          document.getElementById('transfer-iban').value = it.iban || '';
-          box.classList.add('d-none');
-        });
-        box.appendChild(div);
-      });
-      box.classList.remove('d-none');
-    }
+    /* ========== Helpers : account/transactions/scheduled ==========
+       NOTE: this code expects Supabase tables:
+         - accounts(user_id text PK, iban text, balance numeric, avatar text, username text, created_at timestamptz)
+         - transactions(id serial PK, user_id text, type text ('debit'|'credit'), amount numeric, iban text, description text, status text, created_at timestamptz, scheduled_id int NULL)
+         - scheduled_transfers(id serial PK, user_id text, amount numeric, iban text, description text, scheduled_at timestamptz, status text, created_at timestamptz, executed_at timestamptz NULL)
+    ================================================ */
 
-    // ---- scheduled DB helpers ----
-    async function insertScheduledTransferToDB(obj){
-      if(!dbAvailable) throw new Error('db-unavailable');
-      const { data, error } = await supabase
-        .from('scheduled_transfers')
-        .insert([{
-          user_id: obj.user_id,
-          amount: obj.amount,
-          iban: obj.iban,
-          description: obj.description || null,
-          scheduled_at: obj.scheduled_at,
-          status: 'scheduled',
-          created_at: new Date().toISOString()
-        }]).select().maybeSingle();
-      if(error) throw error;
-      return data;
-    }
-    async function fetchScheduledFromDB(){
-      if(!dbAvailable) return [];
-      const { data, error } = await supabase
-        .from('scheduled_transfers')
-        .select('*')
-        .eq('user_id', String(currentUser.id))
-        .in('status', ['scheduled'])
-        .order('scheduled_at', { ascending: true });
-      if(error) { console.warn('fetch scheduled error', error); return []; }
-      return data || [];
-    }
-    async function updateScheduledInDB(id, patch){
-      if(!dbAvailable) throw new Error('db-unavailable');
-      const { data, error } = await supabase.from('scheduled_transfers').update(patch).eq('id', id).select().maybeSingle();
-      if(error) throw error;
-      return data;
-    }
-
-    // ---- account / transactions helpers (ensures initial balance 1500.00) ----
+    /* compute IBAN straightforward: EU + full Discord ID (user asked full ID) */
     function computeIbanFromDiscordId(id){ return 'EU' + String(id); }
-    async function ensureAccountExists(userId, userAvatar){
-      if(!dbAvailable) throw new Error('db-unavailable');
+
+    /* Ensure account exists: if not, create with initial balance 1500.00 */
+    async function ensureAccountExists(userId, userAvatar, username){
+      if(!supabase) throw new Error('db-missing');
       const { data, error } = await supabase.from('accounts').select('*').eq('user_id', String(userId)).limit(1).maybeSingle();
       if(error) throw error;
       if(data) return data;
+      // create account
       const iban = computeIbanFromDiscordId(userId);
-      const initialBalance = 1500.00; // <-- demandé : 1500.00 (€)
-      const { data: ins, error: errIns } = await supabase.from('accounts').insert([{ user_id: String(userId), balance: initialBalance, iban, avatar: userAvatar || null, username: currentUser?.username || null, created_at: new Date().toISOString() }]).select().maybeSingle();
+      const initialBalance = 1500.00;
+      const payload = {
+        user_id: String(userId),
+        balance: initialBalance,
+        iban,
+        avatar: userAvatar || null,
+        username: username || null,
+        created_at: new Date().toISOString()
+      };
+      const { data: ins, error: errIns } = await supabase.from('accounts').insert([payload]).select().maybeSingle();
       if(errIns) throw errIns;
-      // notify user only on creation
+      // notify
       showToast(`Compte créé — crédit initial : ${initialBalance.toFixed(2)} €`, 'success', 5000);
       return ins;
     }
+
     async function loadTransactionsFromDB(userId){
-      if(!dbAvailable) return [];
+      if(!supabase) throw new Error('db-missing');
       const { data, error } = await supabase.from('transactions').select('*').eq('user_id', String(userId)).order('created_at', { ascending: false }).limit(500);
       if(error) throw error;
       return data || [];
     }
 
-    // ---- upcoming balance computation ----
-    async function computeUpcomingBalance(){
-      // upcoming = current balance - sum(outgoing scheduled amounts for this user with status scheduled and scheduled_at in future or now)
-      if(!account) return null;
-      if(!dbAvailable) {
-        document.getElementById('balance-upcoming').textContent = '— €';
-        return;
-      }
+    /* scheduled helpers */
+    async function fetchScheduledFromDB(){
+      if(!supabase) throw new Error('db-missing');
+      const { data, error } = await supabase.from('scheduled_transfers').select('*').eq('user_id', String(currentUser.id)).eq('status','scheduled').order('scheduled_at',{ascending:true});
+      if(error) throw error;
+      return data || [];
+    }
+    async function insertScheduledTransferToDB(obj){
+      if(!supabase) throw new Error('db-missing');
+      const { data, error } = await supabase.from('scheduled_transfers').insert([{
+        user_id: obj.user_id,
+        amount: obj.amount,
+        iban: obj.iban,
+        description: obj.description || null,
+        scheduled_at: obj.scheduled_at,
+        status: 'scheduled',
+        created_at: new Date().toISOString()
+      }]).select().maybeSingle();
+      if(error) throw error;
+      return data;
+    }
+    async function updateScheduledInDB(id, patch){
+      if(!supabase) throw new Error('db-missing');
+      const { data, error } = await supabase.from('scheduled_transfers').update(patch).eq('id', id).select().maybeSingle();
+      if(error) throw error;
+      return data;
+    }
+
+    /* suggestions for IBAN (autocomplete) */
+    async function fetchIbanSuggestions(q){
+      if(!supabase) return [];
+      if(!q || q.length < 1) return [];
       try {
-        const nowIso = new Date().toISOString();
-        // fetch scheduled that belong to user and are scheduled and are not executed
-        const { data, error } = await supabase
-          .from('scheduled_transfers')
-          .select('amount, iban, scheduled_at, status')
-          .eq('user_id', String(currentUser.id))
-          .eq('status', 'scheduled')
-          .order('scheduled_at', { ascending: true });
-        if(error) throw error;
-        const arr = data || [];
-        // sum only future scheduled (scheduled_at >= now)
+        const { data, error } = await supabase.from('accounts').select('user_id,iban,avatar,username').or(`iban.ilike.%${q}%,user_id.ilike.%${q}%`).limit(8);
+        if(error) { console.warn('suggest fetch error', error); return []; }
+        return data || [];
+      } catch(e){ console.warn('suggest fail', e); return []; }
+    }
+
+    /* compute upcoming balance from scheduled transfers */
+    async function computeUpcomingBalance(){
+      if(!account) return;
+      if(!supabase){ document.getElementById('balance-upcoming').textContent = '— €'; return; }
+      try {
+        const arr = await fetchScheduledFromDB();
+        const now = new Date();
         let outSum = 0;
-        arr.forEach(s=>{
-          if(new Date(s.scheduled_at) >= new Date()) outSum += Number(s.amount || 0);
+        arr.forEach(s => {
+          const dt = new Date(s.scheduled_at);
+          if(dt >= now) outSum += Number(s.amount || 0);
         });
         const upcoming = Number((Number(account.balance) - outSum).toFixed(2));
-        const sign = upcoming >= 0 ? '' : '-';
         document.getElementById('balance-upcoming').textContent = `${upcoming.toFixed(2)} € (${outSum.toFixed(2)} € programmés)`;
       } catch(e){
-        console.warn('computeUpcomingBalance error', e);
+        console.warn('computeUpcomingBalance', e);
         document.getElementById('balance-upcoming').textContent = '— €';
       }
     }
 
-    // ---- rendering UI ----
+    /* ========== renderers ========== */
     function renderAccountUI(){
       document.getElementById('acct-username').textContent = currentUser?.username || 'Utilisateur Discord';
       document.getElementById('acct-userid').textContent = 'ID : ' + (currentUser?.id || '');
@@ -448,7 +426,7 @@
     function renderRecentTransactions(){
       const container = document.getElementById('transactions-list');
       container.innerHTML = '';
-      const filtered = applyTxFilters(transactions);
+      const filtered = applyTxFilters(transactions || []);
       if(!filtered || filtered.length === 0){
         container.innerHTML = '<div class="small-note">Aucune transaction.</div>'; return;
       }
@@ -457,7 +435,7 @@
         const div = document.createElement('div');
         div.className = 'd-flex justify-content-between align-items-start gap-2 mb-2';
         const left = document.createElement('div');
-        const isScheduledFlag = (tx.scheduled_id || (tx.description || '').toLowerCase().includes('(programmé)')) ? true : false;
+        const isScheduledFlag = !!tx.scheduled_id || (tx.description || '').toLowerCase().includes('(programmé)');
         left.innerHTML = `<div><strong>${escapeHtml(tx.description || (tx.type === 'credit' ? 'Crédit' : 'Débit'))}</strong></div>
                           <div class="small text-muted">${new Date(tx.created_at || Date.now()).toLocaleString()}</div>
                           <div class="small text-muted">IBAN destinataire: ${escapeHtml(tx.iban || '—')}</div>`;
@@ -471,15 +449,12 @@
         statusSpan.textContent = 'Terminé';
         right.appendChild(amtSpan);
         right.appendChild(statusSpan);
-
-        // badge "Programmé" displayed under status
         if(isScheduledFlag){
           const badge = document.createElement('div');
           badge.className = 'badge-scheduled';
           badge.textContent = 'Programmé';
           right.appendChild(badge);
         }
-
         div.appendChild(left);
         div.appendChild(right);
         container.appendChild(div);
@@ -489,10 +464,10 @@
     function renderFullTransactions(){
       const container = document.getElementById('transactions-full-list');
       container.innerHTML = '';
-      const filtered = applyTxFilters(transactions);
+      const filtered = applyTxFilters(transactions || []);
       if(!filtered || filtered.length === 0){ container.innerHTML = '<div class="small-note">Aucune transaction.</div>'; return; }
       filtered.forEach(tx=>{
-        const isScheduledFlag = (tx.scheduled_id || (tx.description || '').toLowerCase().includes('(programmé)')) ? true : false;
+        const isScheduledFlag = !!tx.scheduled_id || (tx.description || '').toLowerCase().includes('(programmé)');
         const el = document.createElement('div');
         el.className = 'card mb-2 p-2';
         el.innerHTML = `<div class="d-flex justify-content-between">
@@ -511,12 +486,12 @@
       });
     }
 
-    // ---- scheduled UI using Supabase (buttons stacked) ----
+    /* ========== Scheduled UI ========== */
     async function renderScheduledUI(){
       const listEl = document.getElementById('scheduled-list');
       const emptyEl = document.getElementById('scheduled-empty');
       listEl.innerHTML = '';
-      if(!dbAvailable){ emptyEl.classList.remove('d-none'); emptyEl.textContent = 'Communication avec notre base impossible.'; return; }
+      if(!supabase){ emptyEl.classList.remove('d-none'); emptyEl.textContent = 'Communication avec notre base impossible.'; return; }
       try {
         const arr = await fetchScheduledFromDB();
         if(!arr || arr.length === 0){ emptyEl.classList.remove('d-none'); emptyEl.textContent = 'Aucun virement programmé.'; return; }
@@ -541,13 +516,11 @@
             </div>
           `;
           listEl.appendChild(card);
-
           const btnEdit = card.querySelector('.btn-edit-scheduled');
           const btnExec = card.querySelector('.btn-exec-scheduled');
           const btnCancel = card.querySelector('.btn-cancel-scheduled');
 
           btnEdit.addEventListener('click', ()=>{
-            // prefill modal and store scheduled id
             document.getElementById('transfer-amount').value = Number(s.amount || 0).toFixed(2);
             document.getElementById('transfer-iban').value = s.iban || '';
             document.getElementById('transfer-desc').value = s.description || '';
@@ -570,26 +543,16 @@
                 await updateScheduledInDB(s.id, { status: 'processed', executed_at: new Date().toISOString() });
                 showToast('Virement programmé exécuté', 'success');
                 await reloadAfterChange();
-              } else {
-                showToast('Échec exécution programmée', 'danger');
-              }
-            } catch(e){
-              console.error('exec scheduled error', e);
-              showToast('Erreur lors de l\'exécution', 'danger');
-            } finally { hideLoading(); }
+              } else showToast('Échec exécution programmée', 'danger');
+            } catch(e){ console.error('exec scheduled error', e); showToast('Erreur', 'danger'); }
+            finally{ hideLoading(); }
           });
 
           btnCancel.addEventListener('click', async ()=>{
             const ok = confirm('Annuler ce virement programmé ?');
             if(!ok) return;
-            try {
-              await updateScheduledInDB(s.id, { status: 'cancelled' });
-              showToast('Virement programmé annulé', 'info');
-              await renderScheduledUI();
-            } catch(e){
-              console.error('cancel scheduled error', e);
-              showToast('Erreur annulation', 'danger');
-            }
+            try { await updateScheduledInDB(s.id, { status: 'cancelled' }); showToast('Virement programmé annulé', 'info'); renderScheduledUI(); }
+            catch(e){ console.error('cancel scheduled error', e); showToast('Erreur annulation', 'danger'); }
           });
         });
       } catch(e){
@@ -599,9 +562,9 @@
       }
     }
 
-    // ---- transfer logic (account->account) ----
+    /* ========== core transfer logic (account -> account) ========== */
     async function createAccountToAccountTransfer(amount, destIban, description, scheduledId){
-      if(!dbAvailable){ showToast('Impossible : la base est inaccessible', 'danger'); return false; }
+      if(!supabase){ showToast('Impossible : la base est inaccessible', 'danger'); return false; }
       if(!account) { showToast('Compte introuvable', 'danger'); return false; }
       amount = Number(Number(amount).toFixed(2));
       if(!amount || amount <= 0){ showToast('Montant invalide', 'warning'); return false; }
@@ -616,45 +579,34 @@
         const { data: recipient, error: errRec } = await supabase.from('accounts').select('*').eq('iban', destIbanNorm).limit(1).maybeSingle();
         if(errRec) throw errRec;
         if(!recipient){
-          showToast('Compte destinataire introuvable', 'warning');
-          return false;
+          showToast('Compte destinataire introuvable', 'warning'); return false;
         }
 
         if(String(recipient.user_id) === String(senderUserId)){
-          showToast("Impossible : virement vers votre propre compte (interdit).", "warning");
-          return false;
+          showToast("Impossible : virement vers votre propre compte (interdit).", "warning"); return false;
         }
 
         if(Number(sourceAccount.balance) < amount){
-          showToast('Solde insuffisant', 'warning');
-          return false;
+          showToast('Solde insuffisant', 'warning'); return false;
         }
 
-        // Prepare transactions; include scheduled_id if provided
         const nowIso = new Date().toISOString();
         const txDebitBase = { user_id: senderUserId, type: 'debit', amount, status: 'completed', iban: destIbanNorm, description, created_at: nowIso };
         const txCreditBase = { user_id: String(recipient.user_id), type: 'credit', amount, status: 'completed', iban: destIbanNorm, description, created_at: nowIso };
 
-        // Insert two transactions (debit and credit)
-        let insResult;
+        // insert transactions (with scheduled_id if provided)
+        let ins;
         if(scheduledId){
-          try {
-            const { data, error } = await supabase.from('transactions').insert([{...txDebitBase, scheduled_id: scheduledId}, {...txCreditBase, scheduled_id: scheduledId}]).select();
-            if(error) throw error;
-            insResult = data;
-          } catch(e){
-            console.warn('Insert with scheduled_id failed, retrying without scheduled_id', e);
-            const { data, error } = await supabase.from('transactions').insert([txDebitBase, txCreditBase]).select();
-            if(error) throw error;
-            insResult = data;
-          }
+          const { data, error } = await supabase.from('transactions').insert([{...txDebitBase, scheduled_id: scheduledId}, {...txCreditBase, scheduled_id: scheduledId}]).select();
+          if(error) throw error;
+          ins = data;
         } else {
           const { data, error } = await supabase.from('transactions').insert([txDebitBase, txCreditBase]).select();
           if(error) throw error;
-          insResult = data;
+          ins = data;
         }
 
-        // update balances atomically (best effort)
+        // update balances
         const newSenderBalance = Number(sourceAccount.balance) - amount;
         const { error: errUpdSender } = await supabase.from('accounts').update({ balance: newSenderBalance }).eq('user_id', senderUserId);
         if(errUpdSender) throw errUpdSender;
@@ -663,22 +615,21 @@
         const { error: errUpdRec } = await supabase.from('accounts').update({ balance: newRecipientBalance }).eq('user_id', String(recipient.user_id));
         if(errUpdRec) throw errUpdRec;
 
-        // refresh local state
-        account = await ensureAccountExists(currentUser.id, currentUser.avatar);
+        // refresh local state from DB
+        account = await ensureAccountExists(currentUser.id, currentUser.avatar, currentUser.username);
         transactions = await loadTransactionsFromDB(currentUser.id);
 
         renderAccountUI();
         renderRecentTransactions();
         renderFullTransactions();
         computeUpcomingBalance();
-
         return true;
       } catch(e){
         console.error('createAccountToAccountTransfer error', e);
         dbAvailable = false;
         document.getElementById('db-unavailable-banner').classList.remove('d-none');
         disableTransferControls(true);
-        showToast('Erreur lors du traitement (base inaccessible ou erreur)', 'danger');
+        showToast('Erreur lors du traitement (base inaccessible ou autre)', 'danger');
         return false;
       } finally { hideLoading(); }
     }
@@ -692,18 +643,12 @@
       document.getElementById('btn-mes-factures').disabled = !!disabled;
     }
 
-    // ---- scheduled processing: execute due scheduled transfers immediately (polling every 10s) ----
+    /* ========== scheduled auto-execution (polling 10s) ========== */
     async function processScheduledTransfers(){
-      if(!dbAvailable) return;
+      if(!supabase) return;
       try {
         const nowIso = new Date().toISOString();
-        const { data: due, error } = await supabase
-          .from('scheduled_transfers')
-          .select('*')
-          .eq('user_id', String(currentUser.id))
-          .lte('scheduled_at', nowIso)
-          .eq('status', 'scheduled')
-          .order('scheduled_at', { ascending: true });
+        const { data: due, error } = await supabase.from('scheduled_transfers').select('*').eq('user_id', String(currentUser.id)).lte('scheduled_at', nowIso).eq('status','scheduled').order('scheduled_at',{ascending:true});
         if(error) { console.warn('fetch due scheduled error', error); return; }
         if(!due || due.length === 0) return;
         for(const s of due){
@@ -712,60 +657,16 @@
             if(ok){
               await updateScheduledInDB(s.id, { status: 'processed', executed_at: new Date().toISOString() });
               showToast(`Virement programmé exécuté (${s.iban})`, 'success');
-            } else {
-              console.warn('scheduled transfer returned false for id', s.id);
-            }
-          } catch(e){
-            console.error('scheduled execution error for id', s.id, e);
-          }
+            } else console.warn('scheduled transfer returned false for id', s.id);
+          } catch(e){ console.error('scheduled execution error for id', s.id, e); }
         }
-      } catch(e){
-        console.warn('processScheduledTransfers error', e);
-      }
+      } catch(e){ console.warn('processScheduledTransfers error', e); }
     }
 
-    // ---- init ----
-    async function init(){
-      showLoading('Vérification compte...');
-      try { currentUser = await fetchDiscordUser(); } catch(e){ console.error(e); setTimeout(()=> location.href = 'login.html', 200); return; }
-
-      if(!supabase){ dbAvailable = false; document.getElementById('db-unavailable-banner').classList.remove('d-none'); disableTransferControls(true); account = { user_id: String(currentUser.id), balance: 0, iban: computeIbanFromDiscordId(currentUser.id) }; transactions = []; renderAccountUI(); renderRecentTransactions(); hideLoading(); return; }
-
-      try {
-        account = await ensureAccountExists(currentUser.id, currentUser.avatar);
-        transactions = await loadTransactionsFromDB(currentUser.id);
-        dbAvailable = true;
-        document.getElementById('db-unavailable-banner').classList.add('d-none');
-        disableTransferControls(false);
-      } catch(e){
-        console.warn('DB ops failed', e);
-        dbAvailable = false;
-        document.getElementById('db-unavailable-banner').classList.remove('d-none');
-        disableTransferControls(true);
-        account = { user_id: String(currentUser.id), balance: 0, iban: computeIbanFromDiscordId(currentUser.id) };
-        transactions = [];
-      }
-
-      renderAccountUI();
-      renderRecentTransactions();
-      renderFullTransactions();
-      await renderScheduledUI();
-      await computeUpcomingBalance();
-
-      // process due scheduled transfers now and poll every 10s to run them automatically while on site
-      try { await processScheduledTransfers(); } catch(e){ console.warn('initial scheduled process error', e); }
-      setInterval(()=> { processScheduledTransfers(); }, 10 * 1000);
-
-      // also refresh upcoming balance frequently
-      setInterval(()=> { computeUpcomingBalance(); }, 10 * 1000);
-
-      hideLoading();
-    }
-
-    // reload helper after DB changes
+    /* ========== reload after changes ========== */
     async function reloadAfterChange(){
       try {
-        account = await ensureAccountExists(currentUser.id, currentUser.avatar);
+        account = await ensureAccountExists(currentUser.id, currentUser.avatar, currentUser.username);
         transactions = await loadTransactionsFromDB(currentUser.id);
         await renderScheduledUI();
         renderAccountUI();
@@ -775,7 +676,7 @@
       } catch(e){ console.warn('reloadAfterChange error', e); }
     }
 
-    // ---- UI events ----
+    /* ========== UI events setup ========== */
     document.getElementById('btn-send-transfer').addEventListener('click', ()=> {
       if(!dbAvailable){ showToast('Impossible : la base est inaccessible.', 'danger'); return; }
       document.getElementById('transfer-amount').value = '';
@@ -787,11 +688,8 @@
       new bootstrap.Modal(document.getElementById('transferModal')).show();
     });
 
-    document.getElementById('btn-mes-factures').addEventListener('click', ()=> {
-      window.location.href = 'facture.html';
-    });
+    document.getElementById('btn-mes-factures').addEventListener('click', ()=> { window.location.href = 'facture.html'; });
 
-    // Repeat last transfer (prefill)
     document.getElementById('btn-repeat-last').addEventListener('click', ()=>{
       if(!transactions || transactions.length === 0){ showToast('Aucune transaction à répéter', 'warning'); return; }
       let last = transactions.find(t => t.type === 'debit') || transactions[0];
@@ -805,42 +703,47 @@
       new bootstrap.Modal(document.getElementById('transferModal')).show();
     });
 
-    document.getElementById('btn-scheduled').addEventListener('click', ()=>{
-      renderScheduledUI();
-      new bootstrap.Modal(document.getElementById('scheduledModal')).show();
-    });
+    document.getElementById('btn-scheduled').addEventListener('click', ()=> { renderScheduledUI(); new bootstrap.Modal(document.getElementById('scheduledModal')).show(); });
 
     document.getElementById('btn-view-history').addEventListener('click', ()=> { renderFullTransactions(); new bootstrap.Modal(document.getElementById('transactionsModal')).show(); });
 
     document.getElementById('btn-refresh-account-right').addEventListener('click', async ()=> { showLoading('Actualisation...'); await init(); hideLoading(); showToast('Actualisé', 'primary'); });
 
-    // Mon compte button
     document.getElementById('btn-my-account').addEventListener('click', ()=> { window.location.href = 'login.html'; });
 
-    // transfer scheduling toggle
-    document.getElementById('transfer-schedule-toggle').addEventListener('change', (e)=>{
+    document.getElementById('transfer-schedule-toggle').addEventListener('change', (e)=> {
       const row = document.getElementById('transfer-schedule-row');
       if(e.target.checked) row.classList.remove('d-none'); else row.classList.add('d-none');
     });
 
     // IBAN suggestions (debounced)
     const ibanInput = document.getElementById('transfer-iban');
+    let suggestionTimer = null;
     ibanInput.addEventListener('input', (e)=>{
       const v = e.target.value.trim();
       if(suggestionTimer) clearTimeout(suggestionTimer);
       suggestionTimer = setTimeout(async ()=>{
-        if(!v || v.length < 2){ showSuggestions([]); return; }
-        const items = await fetchIbanSuggestions(v);
-        showSuggestions(items);
+        if(!v || v.length < 1){ showSuggestions([]); return; }
+        try { const items = await fetchIbanSuggestions(v); showSuggestions(items); } catch(e){ console.warn('suggest fail', e); showSuggestions([]); }
       }, 200);
     });
-    document.addEventListener('click', (ev)=>{
+    function showSuggestions(items){
       const box = document.getElementById('iban-suggestions');
-      if(!box) return;
-      if(!box.contains(ev.target) && ev.target !== ibanInput) box.classList.add('d-none');
-    });
+      box.innerHTML = '';
+      if(!items || items.length === 0){ box.classList.add('d-none'); return; }
+      items.forEach(it => {
+        const div = document.createElement('div');
+        div.className = 'suggestion-item';
+        div.innerHTML = `<img class="suggestion-avatar" src="${it.avatar ? escapeHtml(it.avatar) : 'https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg'}" alt="">
+                         <div><div style="font-weight:600">${escapeHtml(it.iban)}</div>
+                         <div class="small text-muted">ID: ${escapeHtml(it.user_id)}${it.username ? ' • ' + escapeHtml(it.username) : ''}</div></div>`;
+        div.addEventListener('click', ()=> { document.getElementById('transfer-iban').value = it.iban || ''; box.classList.add('d-none'); });
+        box.appendChild(div);
+      });
+      box.classList.remove('d-none');
+    }
+    document.addEventListener('click', (ev)=> { const box = document.getElementById('iban-suggestions'); if(!box) return; if(!box.contains(ev.target) && ev.target !== ibanInput) box.classList.add('d-none'); });
 
-    // transfer submit (create immediate or scheduled in DB; supports editing scheduled entries)
     document.getElementById('transfer-form').addEventListener('submit', async (ev)=>{
       ev.preventDefault();
       const amount = parseFloat(document.getElementById('transfer-amount').value);
@@ -852,13 +755,12 @@
 
       if(!amount || amount <= 0){ showToast('Montant invalide', 'warning'); return; }
       if(!/^EU\d+$/.test(iban)){ showToast('IBAN invalide — format attendu EU + ID Discord complet', 'warning'); return; }
-      if(!dbAvailable){ showToast('Impossible : la base de données est inaccessible.', 'danger'); return; }
+      if(!supabase){ showToast('Impossible : la base de données est inaccessible.', 'danger'); return; }
 
       if(scheduled){
         if(!dateVal){ showToast('Sélectionne une date pour programmer le virement', 'warning'); return; }
         const d = new Date(dateVal);
         if(isNaN(d.getTime())){ showToast('Date invalide', 'warning'); return; }
-
         try {
           if(scheduledId){
             await updateScheduledInDB(scheduledId, { amount, iban, description: desc, scheduled_at: d.toISOString(), status: 'scheduled' });
@@ -870,17 +772,12 @@
           const modal = bootstrap.Modal.getInstance(document.getElementById('transferModal'));
           if(modal) modal.hide();
           await reloadAfterChange();
-        } catch(e){
-          console.error('schedule insert/update error', e);
-          showToast('Erreur lors de l\'enregistrement programmé', 'danger');
-        }
+        } catch(e){ console.error('schedule error', e); showToast('Erreur lors de l\'enregistrement programmé', 'danger'); }
         return;
       }
 
-      // immediate transfer
       const ok = confirm(`Confirmer le virement de ${amount.toFixed(2)} € vers ${iban} ?`);
       if(!ok) return;
-
       const success = await createAccountToAccountTransfer(amount, iban, desc);
       if(success){
         const modal = bootstrap.Modal.getInstance(document.getElementById('transferModal'));
@@ -901,7 +798,62 @@
     document.getElementById('tx-filter-q').addEventListener('input', ()=> renderRecentTransactions());
     document.getElementById('tx-filter-clear').addEventListener('click', ()=> { document.getElementById('tx-filter-q').value=''; document.getElementById('tx-filter-type').value='all'; renderRecentTransactions(); });
 
-    // run init on load
+    /* ========== app init ========== */
+    async function init(){
+      showLoading('Initialisation...');
+      try {
+        // ensure supabase library loaded and client created
+        try {
+          await ensureSupabaseClient();
+          dbAvailable = !!supabase;
+        } catch(e){
+          console.warn('Supabase client unavailable', e);
+          supabase = null; dbAvailable = false;
+        }
+
+        // fetch discord user (throws to login if missing)
+        try { currentUser = await fetchDiscordUser(); }
+        catch(e){ console.error('discord fetch failed', e); hideLoading(); showToast('Non connecté — redirection vers login', 'warning', 4000); setTimeout(()=> location.href = 'login.html', 400); return; }
+
+        // if supabase available -> ensure account & load txs, else display banner and keep disabled actions
+        if(supabase){
+          try {
+            account = await ensureAccountExists(currentUser.id, currentUser.avatar, currentUser.username);
+            transactions = await loadTransactionsFromDB(currentUser.id);
+            dbAvailable = true;
+            document.getElementById('db-unavailable-banner').classList.add('d-none');
+            disableTransferControls(false);
+          } catch(e){
+            console.warn('DB operation error', e);
+            dbAvailable = false;
+            document.getElementById('db-unavailable-banner').classList.remove('d-none');
+            disableTransferControls(true);
+            account = null;
+            transactions = [];
+          }
+        } else {
+          dbAvailable = false;
+          document.getElementById('db-unavailable-banner').classList.remove('d-none');
+          disableTransferControls(true);
+          account = null;
+          transactions = [];
+        }
+
+        renderAccountUI();
+        renderRecentTransactions();
+        renderFullTransactions();
+        await computeUpcomingBalance();
+        await renderScheduledUI();
+
+        // schedule processing: run now and poll every 10s when supabase available
+        if(supabase){
+          try { await processScheduledTransfers(); } catch(e){ console.warn('initial scheduled error', e); }
+          setInterval(()=> { if(supabase) processScheduledTransfers(); }, 10 * 1000);
+        }
+      } finally { hideLoading(); }
+    }
+
+    // Run init on load
     window.addEventListener('load', init);
 
   })();
