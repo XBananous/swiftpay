@@ -13,13 +13,19 @@
     .card-section { border-radius:12px; }
     .balance-big { font-size:2.25rem; font-weight:700; }
     .small-note { font-size:.85rem; color:#6c757d; }
-    #loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.75); z-index:2200000000; display:none; align-items:center; justify-content:center; }
+    #loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.8); z-index:2200000000; display:none; align-items:center; justify-content:center; }
     .transaction-type-credit { color:#0d6efd; font-weight:700; }
     .transaction-type-debit { color:#dc3545; font-weight:700; }
     .status-completed { background:#e7f3ff; color:#0b5ed7; padding:.25rem .5rem; border-radius:8px; font-weight:700; }
     #toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 2250000000; display:flex; flex-direction:column; gap:.5rem; max-width:360px; }
     .db-warning { border-left:4px solid #ffc107; background:#fff8e1; padding:.75rem; border-radius:8px; }
-    @media (max-width:576px){ .balance-big{ font-size:1.6rem } }
+    .iban-input-group .form-control[readonly] { background-color:#fff; }
+    .btn-copy { min-width:3.25rem; }
+    .btn-send { min-width:160px; }
+    .filters-row { gap:.5rem; display:flex; align-items:center; margin-bottom:.75rem; }
+    .scheduled-list { max-height:220px; overflow:auto; }
+    .upcoming-balance { font-weight:700; }
+    @media (max-width:576px){ .balance-big{ font-size:1.6rem } .filters-row{ flex-direction:column; align-items:stretch } }
   </style>
 </head>
 <body>
@@ -32,7 +38,6 @@
         </button>
       </div>
       <div class="d-flex align-items-center gap-2">
-        <button id="btn-refresh-account" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
         <a class="navbar-brand mb-0 h1 d-flex align-items-center" href="index.html" title="SwiftPay">
           <img src="logo.png" alt="logo" width="36" height="36">
         </a>
@@ -50,14 +55,15 @@
   <main class="container py-4">
     <div id="db-unavailable-banner" class="db-warning mb-3 d-none">
       <strong>Base de données inaccessible — virement impossible.</strong>
-      <div class="small-note">Les données locales en cache sont visibles en lecture seule. Pour effectuer un virement, reconnecte la base de données.</div>
+      <div class="small-note">Les opérations d'envoi sont désactivées tant que la connexion n'est pas rétablie.</div>
     </div>
 
     <div class="row g-3">
 
-      <div class="col-12">
-        <div class="card card-section p-3 d-flex align-items-center">
-          <div class="d-flex w-100 align-items-center gap-3">
+      <!-- Compte -->
+      <div class="col-12 col-md-7">
+        <div class="card card-section p-3">
+          <div class="d-flex gap-3 align-items-start">
             <div style="width:64px;height:64px;border-radius:12px;overflow:hidden;">
               <img id="acct-avatar" src="https://upload.wikimedia.org/wikipedia/commons/5/59/Discord_logo_2015.svg" style="width:100%;height:100%;object-fit:cover">
             </div>
@@ -65,58 +71,103 @@
               <div class="fw-semibold" id="acct-username">Non connecté</div>
               <div class="small text-muted" id="acct-userid"></div>
               <div class="small text-muted mt-1" id="acct-company"></div>
-              <div class="small text-muted mt-1" id="acct-iban-note"></div>
             </div>
             <div class="text-end">
-              <div class="small text-muted">Solde courant</div>
-              <div class="balance-big" id="balance-current">0.00 €</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6">
-        <div class="card card-section p-3 h-100">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="fw-semibold">Envoyer un virement</div>
-              <div class="small-note mt-1">Virements instantanés — requièrent la base de données active.</div>
-            </div>
-            <div>
-              <button id="btn-send-transfer" class="btn btn-primary"><i class="fa-solid fa-arrow-right-from-bracket"></i> Envoyer</button>
+              <button id="btn-refresh-account-right" class="btn btn-outline-secondary btn-sm" title="Actualiser"><i class="fa-solid fa-arrows-rotate"></i></button>
             </div>
           </div>
 
           <hr>
 
-          <div class="d-grid gap-2">
-            <a id="btn-payment-methods" class="btn btn-outline-primary" href="payement_methods.html"><i class="fa-solid fa-credit-card"></i> Gérer moyens de paiement</a>
-            <button id="btn-view-history" class="btn btn-outline-secondary"><i class="fa-solid fa-list"></i> Voir l'historique complet</button>
+          <div class="mt-2">
+            <div class="fw-semibold small mb-1">IBAN (ton compte)</div>
+            <div class="input-group iban-input-group">
+              <input id="acct-iban" class="form-control form-control-sm" readonly>
+              <button id="btn-copy-iban" class="btn btn-outline-primary btn-copy" title="Copier l'IBAN"><i class="fa-regular fa-copy"></i></button>
+            </div>
+            <div class="small-note mt-2">IBAN = <code>EU</code> + ID Discord complet (ex: <code>EU123456789012345678</code>).</div>
           </div>
         </div>
       </div>
 
+      <!-- Solde et Solde à venir -->
+      <div class="col-12 col-md-5">
+        <div class="card card-section p-3">
+          <div class="text-end">
+            <div class="small-note">Solde courant</div>
+            <div class="balance-big" id="balance-current">0.00 €</div>
+            <div class="small-note mt-2" id="balance-updated">Dernière synchronisation : —</div>
+            <hr>
+            <div class="small-note">Solde à venir</div>
+            <div class="upcoming-balance" id="balance-upcoming">0.00 €</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions (Envoyer en haut) -->
+      <div class="col-12 col-md-6">
+        <div class="card card-section p-3 h-100">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <div class="fw-semibold">Actions</div>
+              <div class="small-note mt-1">Opérations disponibles</div>
+            </div>
+          </div>
+
+          <!-- Envoyer placé ici, en premier -->
+          <div class="mb-3">
+            <button id="btn-send-transfer" class="btn btn-primary btn-send w-100"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Envoyer un virement</button>
+          </div>
+
+          <hr>
+
+          <div class="d-grid gap-2">
+            <a id="btn-payment-methods" class="btn btn-outline-primary" href="payement_methods.html"><i class="fa-solid fa-credit-card me-2"></i>Gérer moyens de paiement</a>
+            <button id="btn-repeat-last" class="btn btn-outline-secondary"><i class="fa-solid fa-list me-2"></i>Modèles de virements</button>
+            <button id="btn-view-history" class="btn btn-outline-secondary"><i class="fa-solid fa-list me-2"></i>Voir l'historique complet</button>
+            <button id="btn-manage-scheduled" class="btn btn-outline-secondary"><i class="fa-regular fa-clock me-2"></i>Gérer virements programmés</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historique récent + filtres -->
       <div class="col-12 col-md-6">
         <div class="card card-section p-3 h-100">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="fw-semibold">Historique récent</div>
-            <div class="small-note">Dernières transactions (synchronisées avec la base)</div>
+            <div class="small-note">Dernières transactions</div>
           </div>
+
+          <!-- Filters -->
+          <div class="filters-row mb-2">
+            <select id="tx-filter-type" class="form-select form-select-sm" style="max-width:160px;">
+              <option value="all">Tous</option>
+              <option value="debit">Débit</option>
+              <option value="credit">Crédit</option>
+            </select>
+            <input id="tx-filter-q" class="form-control form-control-sm" placeholder="Rechercher IBAN ou libellé" />
+            <button id="tx-filter-clear" class="btn btn-sm btn-outline-secondary">Effacer</button>
+          </div>
+
           <div id="transactions-list" style="max-height:420px;overflow:auto;"></div>
         </div>
       </div>
 
+      <!-- Scheduled quick view -->
       <div class="col-12">
         <div class="card card-section p-3">
-          <div class="fw-semibold">Informations</div>
-          <div class="small-note mt-2">IBAN = <code>EU</code> + 13 derniers chiffres de ton ID Discord (remplissage à gauche si nécessaire) — affiché dans la section Compte.</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Virements programmés</div>
+            <div class="small-note">Ils s’affichent ici et sont inclus dans le solde à venir.</div>
+          </div>
+          <div id="scheduled-quick" class="scheduled-list"></div>
         </div>
       </div>
 
     </div>
   </main>
 
-  <!-- MODAL : Send transfer -->
+  <!-- MODAL : Send transfer (ajout option programmer + sauvegarder comme modèle) -->
   <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <form id="transfer-form" class="modal-content">
@@ -134,13 +185,35 @@
 
           <div class="mb-3">
             <label class="form-label">IBAN destinataire</label>
-            <input id="transfer-iban" class="form-control" placeholder="EU0000000000000" required>
-            <div class="form-text small-note">Format : EU + 13 chiffres. Exemple : <code>EU0000000000000</code></div>
+            <input id="transfer-iban" class="form-control" placeholder="EU + ID Discord complet (ex: EU123...)" required>
+            <div class="form-text small-note">L'IBAN doit correspondre exactement à un compte enregistré.</div>
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Motif</label>
-            <input id="transfer-desc" class="form-control" placeholder="Ex : Paiement fournisseur">
+            <label class="form-label">Libellé</label>
+            <input id="transfer-desc" class="form-control" placeholder="Ex : Paiement fournisseur / salaire">
+          </div>
+
+          <div class="mb-3 form-check">
+            <input class="form-check-input" type="checkbox" id="transfer-schedule">
+            <label class="form-check-label" for="transfer-schedule">Programmer ce virement</label>
+          </div>
+
+          <div id="schedule-controls" class="d-none">
+            <div class="mb-3">
+              <label class="form-label">Date et heure d'envoi</label>
+              <input id="transfer-date" type="datetime-local" class="form-control">
+              <div class="form-text small-note">Le virement sera envoyé automatiquement à la date choisie (si tu es sur le site) sinon lors de ta prochaine visite.</div>
+            </div>
+          </div>
+
+          <div class="mb-3 form-check">
+            <input class="form-check-input" type="checkbox" id="transfer-save-template">
+            <label class="form-check-label" for="transfer-save-template">Enregistrer comme modèle</label>
+          </div>
+          <div id="template-name-row" class="mb-3 d-none">
+            <label class="form-label">Nom du modèle</label>
+            <input id="template-name" class="form-control" placeholder="Ex : Loyer mensuel">
           </div>
 
         </div>
@@ -152,7 +225,39 @@
     </div>
   </div>
 
-  <!-- Modal: all transactions -->
+  <!-- Modal: models (templates) -->
+  <div class="modal fade" id="templatesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-md">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Modèles de virements</h5>
+          <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="templates-list"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: manage scheduled transfers -->
+  <div class="modal fade" id="scheduledModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-md">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Virements programmés - gestion</h5>
+          <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="scheduled-list"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: all transactions (lecture seule) -->
   <div class="modal fade" id="transactionsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable modal-lg">
       <div class="modal-content">
@@ -167,17 +272,16 @@
 
   <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.44.3/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  console.log('Supabase chargé ?', !!window.supabase);
-</script>
 
   <script>
   (function(){
+    // ----- config -----
     const SUPABASE_URL = "https://hqpewmimnllbjowvbljm.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxcGV3bWltbmxsYmpvd3ZibGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NDYzNzUsImV4cCI6MjA3NTUyMjM3NX0.BEdZuFYnJP7_14GFA8pYYq-gXRewphM49QP5NRWWHso";
 
+    // ----- UI helpers -----
     const toastContainer = document.getElementById('toast-container');
     function showToast(text,type='primary',ttl=3500){
       const el = document.createElement('div');
@@ -191,117 +295,347 @@
     function hideLoading(){ document.getElementById('loading-overlay').style.display = 'none'; }
     function escapeHtml(s=''){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
 
-    function isConnected(){ return !!localStorage.getItem('access_token_demo'); }
+    // ----- token / discord -----
+    function getDiscordToken(){ return localStorage.getItem('access_token_demo') || null; }
     async function fetchDiscordUser(){
-      const token = localStorage.getItem('access_token_demo');
+      const token = getDiscordToken();
       if(!token) throw new Error('no-token');
       const r = await fetch('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${token}` }});
       if(!r.ok) throw new Error('discord-fetch-failed');
       return r.json();
     }
 
+    // ----- supabase init -----
     let supabase = null;
-    try { if(window.supabase && typeof window.supabase.createClient === 'function') supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ supabase = null; }
-    const dbAvailableInitial = !!supabase;
+    try {
+      if(window.supabase && typeof window.supabase.createClient === 'function'){
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('Supabase ready');
+      } else { supabase = null; console.warn('Supabase UMD not available'); }
+    } catch(e){ supabase = null; console.error(e); }
 
-    const LOCAL_TX_KEY = 'swiftpay_local_transactions';
-    function loadLocalTx(){ try { return JSON.parse(localStorage.getItem(LOCAL_TX_KEY) || "[]"); } catch { return []; } }
-    function saveLocalTx(arr){ localStorage.setItem(LOCAL_TX_KEY, JSON.stringify(arr)); }
-
-    if(!isConnected()){
-      location.href = 'login.html';
-      return;
-    }
-
+    let dbAvailable = !!supabase;
     let currentUser = null;
-    let account = null; // { user_id, balance, iban, created_at }
-    let transactions = []; // list
-    let dbAvailable = dbAvailableInitial;
+    let account = null;
+    let transactions = [];
 
-    function computeIbanFromDiscordId(id){
-      const digits = String(id).replace(/\D/g,'');
-      const last13 = (digits.length >= 13) ? digits.slice(-13) : digits.padStart(13, '0');
-      return 'EU' + last13;
+    // ----- scheduled transfers (stored client-side) -----
+    const SCHED_KEY = 'swiftpay_scheduled_transfers_v1';
+    function loadScheduled(){ try { return JSON.parse(localStorage.getItem(SCHED_KEY) || '[]'); } catch { return []; } }
+    function saveScheduled(arr){ localStorage.setItem(SCHED_KEY, JSON.stringify(arr || [])); }
+    function formatDateLocal(ts){ try { return new Date(ts).toLocaleString(); } catch { return ts; } }
+
+    // ----- templates (saved in Supabase "transfer_templates") -----
+    async function loadTemplates(){
+      if(!dbAvailable) return [];
+      try {
+        const { data, error } = await supabase.from('transfer_templates').select('*').eq('user_id', String(currentUser.id)).order('created_at', { ascending: false }).limit(200);
+        if(error) { console.warn('loadTemplates error', error); return []; }
+        return data || [];
+      } catch(e){ console.warn('loadTemplates caught', e); return []; }
+    }
+    async function saveTemplate(obj){
+      if(!dbAvailable) { showToast('Impossible d’enregistrer le modèle (base indisponible)','warning'); return false; }
+      try {
+        const rec = { user_id: String(currentUser.id), name: obj.name || '', amount: obj.amount || 0, iban: obj.iban || '', description: obj.description || '', created_at: new Date().toISOString() };
+        const { error } = await supabase.from('transfer_templates').insert([rec]);
+        if(error){ console.warn('saveTemplate error', error); showToast('Erreur enregistrement modèle','danger'); return false; }
+        return true;
+      } catch(e){ console.error('saveTemplate', e); showToast('Erreur enregistrement modèle','danger'); return false; }
     }
 
+    // ----- util -----
+    function computeIbanFromDiscordId(id){ return 'EU' + String(id); }
+
+    // ----- account + transactions helpers (Supabase) -----
     async function ensureAccountExists(userId, userAvatar){
-      // returns account object
-      if(!dbAvailable) return null;
-      try {
-        const { data, error } = await supabase
-          .from('accounts')
-          .select('*')
-          .eq('user_id', String(userId))
-          .limit(1)
-          .maybeSingle();
-        if(error) throw error;
-        if(data){
-          return data;
-        } else {
-          // create new account with initial balance 1500.37
-          const iban = computeIbanFromDiscordId(userId);
-          const initialBalance = 1500.37;
-          const toInsert = {
-            user_id: String(userId),
-            balance: initialBalance,
-            iban,
-            avatar: userAvatar || null,
-            created_at: new Date().toISOString()
-          };
-          const { data: ins, error: errIns } = await supabase.from('accounts').insert([toInsert]).select().maybeSingle();
-          if(errIns) throw errIns;
-          return ins;
-        }
-      } catch(e){
-        console.warn('ensureAccountExists error', e);
-        throw e;
-      }
+      if(!dbAvailable) throw new Error('db-unavailable');
+      const { data, error } = await supabase.from('accounts').select('*').eq('user_id', String(userId)).limit(1).maybeSingle();
+      if(error) throw error;
+      if(data) return data;
+      // create account (dev initial balance)
+      const iban = computeIbanFromDiscordId(userId);
+      const initialBalance = 1500.37;
+      const { data: ins, error: errIns } = await supabase.from('accounts').insert([{ user_id: String(userId), balance: initialBalance, iban, avatar: userAvatar || null, created_at: new Date().toISOString() }]).select().maybeSingle();
+      if(errIns) throw errIns;
+      return ins;
     }
 
     async function loadTransactionsFromDB(userId){
-      if(!dbAvailable) return loadLocalTx();
+      if(!dbAvailable) return [];
+      const { data, error } = await supabase.from('transactions').select('*').eq('user_id', String(userId)).order('created_at', { ascending: false }).limit(500);
+      if(error) throw error;
+      return data || [];
+    }
+
+    // create account->account transfer (two tx + balances update)
+    async function createAccountToAccountTransfer(amount, destIban, description){
+      if(!dbAvailable){ showToast('Impossible : la base est inaccessible', 'danger'); return false; }
+      if(!account) { showToast('Compte introuvable', 'danger'); return false; }
+      amount = Number(Number(amount).toFixed(2));
+      if(!amount || amount <= 0){ showToast('Montant invalide', 'warning'); return false; }
+
+      showLoading('Traitement du virement...');
       try {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', String(userId))
-          .order('created_at', { ascending: false })
-          .limit(500);
-        if(error) throw error;
-        return data || [];
+        const senderUserId = String(currentUser.id);
+        const sourceAccount = account;
+        const destIbanNorm = String(destIban || '').toUpperCase();
+
+        // find recipient by IBAN exact match
+        const { data: recipient, error: errRec } = await supabase.from('accounts').select('*').eq('iban', destIbanNorm).limit(1).maybeSingle();
+        if(errRec) throw errRec;
+        if(!recipient){ showToast('Compte destinataire introuvable', 'warning'); return false; }
+
+        if(String(recipient.user_id) === String(senderUserId)){ showToast("Impossible : virement vers votre propre compte (interdit).", "warning"); return false; }
+        if(Number(sourceAccount.balance) < amount){ showToast('Solde insuffisant', 'warning'); return false; }
+
+        const txDebit = { user_id: senderUserId, type: 'debit', amount, status: 'completed', iban: destIbanNorm, description, created_at: new Date().toISOString() };
+        const txCredit = { user_id: String(recipient.user_id), type: 'credit', amount, status: 'completed', iban: destIbanNorm, description, created_at: new Date().toISOString() };
+
+        // insert txs
+        const { data: insTx, error: errTx } = await supabase.from('transactions').insert([txDebit, txCredit]).select();
+        if(errTx) throw errTx;
+
+        // update balances
+        const newSenderBalance = Number(sourceAccount.balance) - amount;
+        const { error: errUpdSender } = await supabase.from('accounts').update({ balance: newSenderBalance }).eq('user_id', senderUserId);
+        if(errUpdSender) throw errUpdSender;
+
+        const newRecipientBalance = Number(recipient.balance) + amount;
+        const { error: errUpdRec } = await supabase.from('accounts').update({ balance: newRecipientBalance }).eq('user_id', String(recipient.user_id));
+        if(errUpdRec) throw errUpdRec;
+
+        // refresh local state
+        account = await ensureAccountExists(currentUser.id, currentUser.avatar);
+        transactions = await loadTransactionsFromDB(currentUser.id);
+
+        renderAccountUI();
+        renderRecentTransactions();
+        renderFullTransactions();
+
+        showToast('Virement effectué (compte → compte)', 'success');
+        return true;
       } catch(e){
-        console.warn('loadTransactionsFromDB error', e);
-        throw e;
+        console.error('createAccountToAccountTransfer error', e);
+        dbAvailable = false;
+        document.getElementById('db-unavailable-banner').classList.remove('d-none');
+        disableTransferControls(true);
+        showToast('Erreur lors du traitement (base inaccessible ou erreur)', 'danger');
+        return false;
+      } finally { hideLoading(); }
+    }
+
+    // ----- scheduled transfers logic -----
+    // scheduled item structure:
+    // { id, user_id, amount, iban, description, send_at_iso, created_at_iso, attempts }
+    function getScheduled(){ return loadScheduled(); }
+    function setScheduled(arr){ saveScheduled(arr); renderScheduledQuick(); computeAndRenderUpcomingBalance(); }
+
+    function addScheduled(item){
+      const arr = getScheduled();
+      item.id = 'sched_' + Date.now() + '_' + (Math.random().toString(36).slice(2,9));
+      item.created_at = new Date().toISOString();
+      item.attempts = 0;
+      arr.push(item);
+      setScheduled(arr);
+      showToast('Virement programmé enregistré', 'primary');
+    }
+
+    function removeScheduledById(id){
+      const arr = getScheduled().filter(x => x.id !== id);
+      setScheduled(arr);
+    }
+
+    async function processDueScheduled(){
+      if(!dbAvailable) return; // send only if DB available
+      const now = new Date();
+      const arr = getScheduled();
+      let modified = false;
+      for(const s of [...arr]){
+        try {
+          const sendAt = new Date(s.send_at);
+          if(sendAt <= now){
+            // attempt transfer
+            const ok = await createAccountToAccountTransfer(Number(s.amount), s.iban, s.description || ('Virement programmé: ' + (s.template_name || '')));
+            if(ok){
+              // remove
+              removeScheduledById(s.id);
+              modified = true;
+            } else {
+              // increment attempts; keep
+              s.attempts = (s.attempts || 0) + 1;
+            }
+          }
+        } catch(e){
+          console.warn('processDueScheduled item error', e);
+          s.attempts = (s.attempts || 0) + 1;
+        }
+      }
+      if(modified) {
+        // state refreshed by createAccountToAccountTransfer
       }
     }
 
-    function renderAccountUI(){
-      document.getElementById('acct-username').textContent = currentUser?.username || 'Utilisateur Discord';
-      document.getElementById('acct-userid').textContent = 'ID : ' + (currentUser?.id || '');
-      if(currentUser?.avatar) document.getElementById('acct-avatar').src = `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png?size=128`;
-      if(account){
-        document.getElementById('acct-iban-note').textContent = `IBAN : ${account.iban} (EU + ID)`;
-        document.getElementById('balance-current').textContent = Number(account.balance || 0).toFixed(2) + ' €';
-      } else {
-        document.getElementById('acct-iban-note').textContent = '';
-        document.getElementById('balance-current').textContent = '0.00 €';
-      }
+    // schedule checker runs at init + every 60s
+    let scheduledInterval = null;
+    function startScheduledChecker(){
+      if(scheduledInterval) clearInterval(scheduledInterval);
+      scheduledInterval = setInterval(()=> {
+        // try to process due scheduled transfers
+        if(dbAvailable) processDueScheduled();
+      }, 60 * 1000);
+    }
+
+    // ----- UI rendering: scheduled -----
+    function renderScheduledQuick(){
+      const container = document.getElementById('scheduled-quick');
+      const arr = getScheduled().sort((a,b)=> new Date(a.send_at) - new Date(b.send_at));
+      if(!arr || arr.length === 0){ container.innerHTML = '<div class="small-note">Aucun virement programmé.</div>'; return; }
+      container.innerHTML = '';
+      arr.slice(0,6).forEach(s => {
+        const el = document.createElement('div');
+        el.className = 'd-flex justify-content-between align-items-start gap-2 mb-2';
+        el.innerHTML = `<div><strong>${escapeHtml(s.description || 'Virement programmé')}</strong><div class="small text-muted">${formatDateLocal(s.send_at)}</div><div class="small text-muted">IBAN: ${escapeHtml(s.iban)}</div></div>
+                        <div class="text-end"><div>${Number(s.amount).toFixed(2)} €</div></div>`;
+        container.appendChild(el);
+      });
+    }
+
+    function renderScheduledListModal(){
+      const container = document.getElementById('scheduled-list');
+      const arr = getScheduled().sort((a,b)=> new Date(a.send_at) - new Date(b.send_at));
+      container.innerHTML = '';
+      if(arr.length === 0){ container.innerHTML = '<div class="small-note">Aucun virement programmé.</div>'; return; }
+      arr.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'card mb-2 p-2';
+        card.innerHTML = `<div class="d-flex justify-content-between">
+          <div>
+            <div><strong>${escapeHtml(s.description || 'Virement programmé')}</strong></div>
+            <div class="small text-muted">${formatDateLocal(s.send_at)}</div>
+            <div class="small text-muted">IBAN: ${escapeHtml(s.iban)}</div>
+          </div>
+          <div class="text-end">
+            <div class="fw-semibold">${Number(s.amount).toFixed(2)} €</div>
+            <div class="small text-muted">Tentatives: ${s.attempts || 0}</div>
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-primary btn-edit-sched">Éditer</button>
+              <button class="btn btn-sm btn-outline-danger btn-del-sched">Supprimer</button>
+            </div>
+          </div>
+        </div>`;
+        // edit handler
+        card.querySelector('.btn-edit-sched').addEventListener('click', ()=>{
+          // prefill transfer modal with scheduled details for editing
+          document.getElementById('transfer-amount').value = Number(s.amount).toFixed(2);
+          document.getElementById('transfer-iban').value = s.iban;
+          document.getElementById('transfer-desc').value = s.description || '';
+          document.getElementById('transfer-schedule').checked = true;
+          document.getElementById('schedule-controls').classList.remove('d-none');
+          // fill date
+          const dt = new Date(s.send_at);
+          // format to yyyy-mm-ddThh:mm
+          const localISO = dt.toISOString().slice(0,16);
+          document.getElementById('transfer-date').value = localISO;
+          // when saving, remove old scheduled and add new
+          // store id in a temporary field
+          document.getElementById('transfer-form').dataset.editingScheduledId = s.id;
+          new bootstrap.Modal(document.getElementById('transferModal')).show();
+        });
+        // delete handler
+        card.querySelector('.btn-del-sched').addEventListener('click', async ()=>{
+          const ok = confirm('Supprimer ce virement programmé ?');
+          if(!ok) return;
+          removeScheduledById(s.id);
+          renderScheduledListModal();
+          renderScheduledQuick();
+          computeAndRenderUpcomingBalance();
+        });
+        container.appendChild(card);
+      });
+    }
+
+    // ----- upcoming balance computation -----
+    function computeAndRenderUpcomingBalance(){
+      const base = Number(account?.balance || 0);
+      const arr = getScheduled();
+      // sum scheduled amounts affecting the current user (we are the sender for scheduled items)
+      const now = new Date();
+      // include all scheduled transfers regardless of date (user wanted upcoming to include programmés)
+      const totalScheduledEffect = arr.reduce((acc, s)=>{
+        // scheduled from current user are outgoing => subtract
+        if(String(s.user_id) === String(currentUser?.id)){
+          return acc - Number(s.amount || 0);
+        }
+        return acc;
+      }, 0);
+      const upcoming = Number(base + totalScheduledEffect);
+      document.getElementById('balance-upcoming').textContent = upcoming.toFixed(2) + ' €';
+    }
+
+    // ----- templates UI -----
+    async function renderTemplatesModal(){
+      const listEl = document.getElementById('templates-list');
+      listEl.innerHTML = '';
+      const templates = await loadTemplates();
+      if(!templates || templates.length === 0){ listEl.innerHTML = '<div class="small-note">Aucun modèle enregistré.</div>'; return; }
+      templates.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'card mb-2 p-2';
+        card.innerHTML = `<div class="d-flex justify-content-between">
+          <div>
+            <div><strong>${escapeHtml(t.name || '(sans nom)')}</strong></div>
+            <div class="small text-muted">IBAN: ${escapeHtml(t.iban || '')} — ${Number(t.amount||0).toFixed(2)} €</div>
+            <div class="small text-muted">${escapeHtml(t.description || '')}</div>
+          </div>
+          <div class="text-end">
+            <div class="d-flex flex-column align-items-end gap-2">
+              <button class="btn btn-sm btn-outline-primary btn-use-template">Utiliser</button>
+            </div>
+          </div>
+        </div>`;
+        card.querySelector('.btn-use-template').addEventListener('click', ()=>{
+          document.getElementById('transfer-amount').value = Number(t.amount||0).toFixed(2);
+          document.getElementById('transfer-iban').value = t.iban || '';
+          document.getElementById('transfer-desc').value = t.description || '';
+          new bootstrap.Modal(document.getElementById('transferModal')).show();
+          const bs = bootstrap.Modal.getInstance(document.getElementById('templatesModal'));
+          if(bs) bs.hide();
+        });
+        listEl.appendChild(card);
+      });
+    }
+
+    // ----- rendering transactions -----
+    function applyTxFilters(list){
+      const type = document.getElementById('tx-filter-type').value;
+      const q = document.getElementById('tx-filter-q').value.trim().toLowerCase();
+      return list.filter(tx=>{
+        if(type !== 'all' && tx.type !== type) return false;
+        if(q){
+          if((tx.iban || '').toLowerCase().includes(q)) return true;
+          if((tx.description || '').toLowerCase().includes(q)) return true;
+          return false;
+        }
+        return true;
+      });
     }
 
     function renderRecentTransactions(){
       const container = document.getElementById('transactions-list');
       container.innerHTML = '';
-      if(!transactions || transactions.length === 0){
-        container.innerHTML = '<div class="small-note">Aucune transaction.</div>';
-        return;
+      const filtered = applyTxFilters(transactions);
+      if(!filtered || filtered.length === 0){
+        container.innerHTML = '<div class="small-note">Aucune transaction.</div>'; return;
       }
-      const recent = transactions.slice(0,8);
+      const recent = filtered.slice(0,8);
       recent.forEach(tx=>{
         const div = document.createElement('div');
         div.className = 'd-flex justify-content-between align-items-start gap-2 mb-2';
         const left = document.createElement('div');
         left.innerHTML = `<div><strong>${escapeHtml(tx.description || (tx.type === 'credit' ? 'Crédit' : 'Débit'))}</strong></div>
-                          <div class="small text-muted">${new Date(tx.created_at || Date.now()).toLocaleString()}</div>`;
+                          <div class="small text-muted">${new Date(tx.created_at || Date.now()).toLocaleString()}</div>
+                          <div class="small text-muted">IBAN: ${escapeHtml(tx.iban || '—')}</div>`;
         const right = document.createElement('div');
         const amt = (tx.type === 'credit' ? '+' : '-') + Number(tx.amount || 0).toFixed(2) + ' €';
         const amtSpan = document.createElement('div');
@@ -314,21 +648,6 @@
         right.appendChild(statusSpan);
         div.appendChild(left);
         div.appendChild(right);
-
-        // delete allowed (we allow delete but will attempt DB delete)
-        const actions = document.createElement('div');
-        actions.className = 'mt-1';
-        const btnDel = document.createElement('button');
-        btnDel.className = 'btn btn-sm btn-outline-danger ms-2';
-        btnDel.innerHTML = '<i class="fa-solid fa-trash"></i>';
-        btnDel.addEventListener('click', async ()=>{
-          const confirmed = await confirmModal('Supprimer cette transaction ?');
-          if(!confirmed) return;
-          await deleteTransaction(tx.id);
-        });
-        actions.appendChild(btnDel);
-        div.appendChild(actions);
-
         container.appendChild(div);
       });
     }
@@ -336,8 +655,9 @@
     function renderFullTransactions(){
       const container = document.getElementById('transactions-full-list');
       container.innerHTML = '';
-      if(!transactions || transactions.length === 0){ container.innerHTML = '<div class="small-note">Aucune transaction.</div>'; return; }
-      transactions.forEach(tx => {
+      const filtered = applyTxFilters(transactions);
+      if(!filtered || filtered.length === 0){ container.innerHTML = '<div class="small-note">Aucune transaction.</div>'; return; }
+      filtered.forEach(tx=>{
         const el = document.createElement('div');
         el.className = 'card mb-2 p-2';
         el.innerHTML = `<div class="d-flex justify-content-between">
@@ -355,245 +675,167 @@
       });
     }
 
-    function confirmModal(message){
-      return new Promise(resolve=>{
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = `
-          <div class="modal fade" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
-              <div class="modal-content">
-                <div class="modal-body">
-                  <p>${escapeHtml(message)}</p>
-                  <div class="d-flex gap-2 justify-content-end">
-                    <button class="btn btn-secondary btn-cancel">Annuler</button>
-                    <button class="btn btn-primary btn-ok">Confirmer</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>`;
-        document.body.appendChild(wrapper);
-        const mEl = wrapper.querySelector('.modal');
-        const bs = new bootstrap.Modal(mEl);
-        mEl.addEventListener('hidden.bs.modal', ()=>{ wrapper.remove(); resolve(false); });
-        wrapper.querySelector('.btn-ok').addEventListener('click', ()=>{ bs.hide(); resolve(true); });
-        wrapper.querySelector('.btn-cancel').addEventListener('click', ()=>{ bs.hide(); resolve(false); });
-        bs.show();
-      });
-    }
-
-    async function deleteTransaction(txId){
-      showLoading('Suppression...');
-      try {
-        if(dbAvailable && supabase){
-          const { error } = await supabase.from('transactions').delete().eq('id', txId);
-          if(error) throw error;
-        }
-        transactions = transactions.filter(t => String(t.id) !== String(txId));
-        saveLocalTx(transactions);
-        renderRecentTransactions();
-        renderFullTransactions();
-        showToast('Transaction supprimée','primary');
-      } catch(e){
-        console.warn('deleteTransaction error', e);
-        // remove local copy anyway
-        transactions = transactions.filter(t => String(t.id) !== String(txId));
-        saveLocalTx(transactions);
-        renderRecentTransactions();
-        renderFullTransactions();
-        showToast('Suppression locale effectuée (base inaccessible)','warning');
-      } finally { hideLoading(); }
-    }
-
-    async function createTransactionDebit(amount, iban, description){
-      // only allowed if dbAvailable true
-      if(!dbAvailable){ showToast('Impossible : la base de données est inaccessible', 'danger'); return false; }
-      if(!account) { showToast('Compte introuvable', 'danger'); return false; }
-      if(Number(account.balance) < Number(amount)) { showToast('Solde insuffisant', 'warning'); return false; }
-
-      showLoading('Traitement du virement...');
-      const txObj = {
-        id: 'tx_' + Date.now().toString(),
-        user_id: String(currentUser.id),
-        type: 'debit',
-        amount: Number(amount.toFixed(2)),
-        status: 'completed',
-        iban,
-        description,
-        created_at: new Date().toISOString()
-      };
-
-      try {
-        // insert transaction
-        const { error: errTx } = await supabase.from('transactions').insert([txObj]);
-        if(errTx) throw errTx;
-
-        // update account balance
-        const newBalance = Number(account.balance) - Number(amount);
-        const { error: errAcc } = await supabase.from('accounts').update({ balance: newBalance }).eq('user_id', String(currentUser.id));
-        if(errAcc) throw errAcc;
-
-        // reflect locally
-        account.balance = newBalance;
-        transactions.unshift(txObj);
-        saveLocalTx(transactions);
-
-        renderAccountUI();
-        renderRecentTransactions();
-        renderFullTransactions();
-        showToast('Virement effectué', 'success');
-        return true;
-      } catch(e){
-        console.error('createTransactionDebit error', e);
-        showToast('Erreur lors du traitement (base inaccessible ou erreur)', 'danger');
-        // try to refresh DB availability flag
-        dbAvailable = false;
-        document.getElementById('db-unavailable-banner').classList.remove('d-none');
-        disableTransferControls(true);
-        return false;
-      } finally { hideLoading(); }
-    }
-
+    // ----- helpers UI -----
     function disableTransferControls(disabled){
       document.getElementById('btn-send-transfer').disabled = !!disabled;
       document.getElementById('btn-payment-methods').disabled = !!disabled;
+      document.getElementById('transfer-submit').disabled = !!disabled;
+      document.getElementById('btn-repeat-last').disabled = !!disabled;
+      document.getElementById('btn-manage-scheduled').disabled = !!disabled;
     }
 
+    // ----- init -----
     async function init(){
       showLoading('Vérification compte...');
+      try { currentUser = await fetchDiscordUser(); } catch(e){ console.error(e); setTimeout(()=> location.href = 'login.html', 200); return; }
+
+      if(!supabase){ dbAvailable = false; document.getElementById('db-unavailable-banner').classList.remove('d-none'); disableTransferControls(true); account = { user_id: String(currentUser.id), balance: 0, iban: computeIbanFromDiscordId(currentUser.id) }; transactions = []; renderAccountUI(); renderRecentTransactions(); renderScheduledQuick(); computeAndRenderUpcomingBalance(); hideLoading(); return; }
+
       try {
-        currentUser = await fetchDiscordUser();
-        document.getElementById('acct-username').textContent = currentUser.username || 'Utilisateur Discord';
-        document.getElementById('acct-userid').textContent = 'ID : ' + (currentUser.id || '');
-        if(currentUser.avatar) document.getElementById('acct-avatar').src = `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png?size=128`;
+        account = await ensureAccountExists(currentUser.id, currentUser.avatar);
+        transactions = await loadTransactionsFromDB(currentUser.id);
+        dbAvailable = true;
+        document.getElementById('db-unavailable-banner').classList.add('d-none');
+        disableTransferControls(false);
       } catch(e){
-        console.error('discord fetch error', e);
-        setTimeout(()=> location.href = 'login.html', 200);
-        return;
-      }
-
-      // Try DB operations: ensure account and load transactions; if any error -> fallback to local read-only
-      if(supabase){
-        try {
-          // ensure accounts table exists / create account if missing
-          const acc = await ensureAccountExists(currentUser.id, currentUser.avatar);
-          account = acc || null;
-
-          // load transactions from DB
-          const txs = await loadTransactionsFromDB(currentUser.id);
-          // normalize
-          transactions = (txs || []).map(d => ({
-            id: d.id || ('tx_'+Date.now()),
-            user_id: d.user_id,
-            type: d.type || 'debit',
-            amount: Number(d.amount || 0),
-            status: d.status || 'completed',
-            iban: d.iban || '',
-            description: d.description || '',
-            created_at: d.created_at || new Date().toISOString()
-          }));
-          // store local mirror
-          saveLocalTx(transactions);
-          dbAvailable = true;
-          document.getElementById('db-unavailable-banner').classList.add('d-none');
-          disableTransferControls(false);
-        } catch(e){
-          console.warn('DB ops failed — switching to local read-only', e);
-          dbAvailable = false;
-          document.getElementById('db-unavailable-banner').classList.remove('d-none');
-          // load from local storage (read-only)
-          transactions = loadLocalTx();
-          // if local stored account snapshot exists, use it
-          const localAccSnapshot = JSON.parse(localStorage.getItem('swiftpay_local_account') || 'null');
-          if(localAccSnapshot && localAccSnapshot.user_id === String(currentUser.id)){
-            account = localAccSnapshot;
-          } else {
-            // create a local placeholder with initial balance but mark base required for transfers
-            account = {
-              user_id: String(currentUser.id),
-              balance: 1500.37,
-              iban: computeIbanFromDiscordId(currentUser.id),
-              created_at: new Date().toISOString()
-            };
-            localStorage.setItem('swiftpay_local_account', JSON.stringify(account));
-          }
-          disableTransferControls(true);
-        }
-      } else {
-        // supabase not loaded at all
+        console.warn('DB ops failed', e);
         dbAvailable = false;
         document.getElementById('db-unavailable-banner').classList.remove('d-none');
-        transactions = loadLocalTx();
-        const localAccSnapshot = JSON.parse(localStorage.getItem('swiftpay_local_account') || 'null');
-        if(localAccSnapshot && localAccSnapshot.user_id === String(currentUser.id)){
-          account = localAccSnapshot;
-        } else {
-          account = {
-            user_id: String(currentUser.id),
-            balance: 1500.37,
-            iban: computeIbanFromDiscordId(currentUser.id),
-            created_at: new Date().toISOString()
-          };
-          localStorage.setItem('swiftpay_local_account', JSON.stringify(account));
-        }
         disableTransferControls(true);
+        account = { user_id: String(currentUser.id), balance: 0, iban: computeIbanFromDiscordId(currentUser.id) };
+        transactions = [];
       }
+
+      // check scheduled items due now (and then every 60s)
+      try { await processDueScheduled(); } catch(e){ console.warn('init processDueScheduled', e); }
+      startScheduledChecker();
 
       renderAccountUI();
       renderRecentTransactions();
+      renderScheduledQuick();
+      computeAndRenderUpcomingBalance();
       hideLoading();
     }
 
+    // ----- UI events -----
     document.getElementById('btn-send-transfer').addEventListener('click', ()=> {
-      if(!dbAvailable){
-        showToast('Impossible : la base de données est inaccessible.', 'danger', 4000); return;
-      }
+      if(!dbAvailable){ showToast('Impossible : la base est inaccessible.', 'danger'); return; }
+      // reset editingScheduledId marker
+      delete document.getElementById('transfer-form').dataset.editingScheduledId;
+      document.getElementById('transfer-amount').value = '';
+      document.getElementById('transfer-iban').value = '';
+      document.getElementById('transfer-desc').value = '';
+      document.getElementById('transfer-schedule').checked = false;
+      document.getElementById('schedule-controls').classList.add('d-none');
+      document.getElementById('transfer-save-template').checked = false;
+      document.getElementById('template-name-row').classList.add('d-none');
       new bootstrap.Modal(document.getElementById('transferModal')).show();
     });
 
-    document.getElementById('btn-view-history').addEventListener('click', ()=> {
-      renderFullTransactions();
-      new bootstrap.Modal(document.getElementById('transactionsModal')).show();
+    // templates modal
+    document.getElementById('btn-repeat-last').addEventListener('click', async ()=>{
+      if(!dbAvailable){ showToast('Impossible : la base est inaccessible.', 'danger'); return; }
+      await renderTemplatesModal();
+      new bootstrap.Modal(document.getElementById('templatesModal')).show();
     });
 
-    document.getElementById('btn-refresh-account').addEventListener('click', async ()=>{
-      showLoading('Actualisation...');
-      await init();
-      hideLoading();
-      showToast('Actualisé', 'primary');
+    document.getElementById('btn-view-history').addEventListener('click', ()=> { renderFullTransactions(); new bootstrap.Modal(document.getElementById('transactionsModal')).show(); });
+
+    document.getElementById('btn-refresh-account-right').addEventListener('click', async ()=> { showLoading('Actualisation...'); await init(); hideLoading(); showToast('Actualisé', 'primary'); });
+
+    document.getElementById('transfer-schedule').addEventListener('change', (ev)=> {
+      const checked = ev.target.checked;
+      document.getElementById('schedule-controls').classList.toggle('d-none', !checked);
     });
 
+    document.getElementById('transfer-save-template').addEventListener('change', (ev)=> {
+      const checked = ev.target.checked;
+      document.getElementById('template-name-row').classList.toggle('d-none', !checked);
+    });
+
+    document.getElementById('btn-manage-scheduled').addEventListener('click', ()=> {
+      renderScheduledListModal();
+      new bootstrap.Modal(document.getElementById('scheduledModal')).show();
+    });
+
+    // submit transfer (immediate or scheduled)
     document.getElementById('transfer-form').addEventListener('submit', async (ev)=>{
       ev.preventDefault();
       const amount = parseFloat(document.getElementById('transfer-amount').value);
-      const iban = document.getElementById('transfer-iban').value.trim();
+      const iban = document.getElementById('transfer-iban').value.trim().toUpperCase();
       const desc = document.getElementById('transfer-desc').value.trim() || 'Virement';
+      const isScheduled = document.getElementById('transfer-schedule').checked;
+      const sendAtVal = document.getElementById('transfer-date').value;
+      const saveTemplateChecked = document.getElementById('transfer-save-template').checked;
+      const templateName = document.getElementById('template-name').value.trim();
+
       if(!amount || amount <= 0){ showToast('Montant invalide', 'warning'); return; }
-      if(!/^EU\d{13}$/.test(iban)){ showToast('IBAN invalide — format attendu EU0000000000000', 'warning'); return; }
-      // ensure DB available
+      if(!/^EU\d+$/.test(iban)){ showToast('IBAN invalide — format attendu EU + ID Discord complet', 'warning'); return; }
       if(!dbAvailable){ showToast('Impossible : la base de données est inaccessible.', 'danger'); return; }
-      // check funds
-      if(Number(account.balance) < amount){ showToast('Solde insuffisant', 'warning'); return; }
 
-      const ok = await confirmModal(`Confirmer le virement de ${amount.toFixed(2)} € vers ${iban} ?`);
-      if(!ok) return;
+      // If saving template, attempt to save async (non-blocking)
+      if(saveTemplateChecked){
+        if(!templateName){ showToast('Donne un nom au modèle', 'warning'); return; }
+        saveTemplate({ name: templateName, amount, iban, description: desc }).then(ok=> { if(ok) showToast('Modèle enregistré','primary'); });
+      }
 
-      const success = await createTransactionDebit(amount, iban, desc);
-      if(success){
-        // refresh account and lists
-        await init();
+      // if editing an existing scheduled: remove old then add new
+      const editingSchedId = document.getElementById('transfer-form').dataset.editingScheduledId;
+
+      if(isScheduled){
+        if(!sendAtVal){ showToast('Choisis la date/heure', 'warning'); return; }
+        const sendAt = new Date(sendAtVal);
+        if(isNaN(sendAt.getTime())){ showToast('Date invalide', 'warning'); return; }
+        // create scheduled record (user is current user)
+        const sched = { user_id: String(currentUser.id), amount: Number(amount.toFixed(2)), iban, description: desc, send_at: sendAt.toISOString(), template_name: templateName || '' };
+        if(editingSchedId){
+          // replace existing
+          let arr = getScheduled().filter(x => x.id !== editingSchedId);
+          arr.push(Object.assign({}, sched, { id: 'sched_' + Date.now(), created_at: new Date().toISOString(), attempts:0 }));
+          setScheduled(arr);
+        } else {
+          addScheduled(sched);
+        }
         // close modal
+        const m = bootstrap.Modal.getInstance(document.getElementById('transferModal'));
+        if(m) m.hide();
+        // refresh scheduled UI & upcoming balance
+        renderScheduledQuick();
+        computeAndRenderUpcomingBalance();
+        return;
+      }
+
+      // immediate transfer -> check and execute
+      const okConfirm = await confirm(`Confirmer le virement de ${amount.toFixed(2)} € vers ${iban} ?`);
+      if(!okConfirm) return;
+
+      const success = await createAccountToAccountTransfer(amount, iban, desc);
+      if(success){
         const modal = bootstrap.Modal.getInstance(document.getElementById('transferModal'));
         if(modal) modal.hide();
         document.getElementById('transfer-form').reset();
+        renderScheduledQuick();
+        computeAndRenderUpcomingBalance();
       }
     });
 
-    document.getElementById('nav-back-btn').addEventListener('click', ()=> {
-      if(document.referrer) history.back(); else window.location.href = 'index.html';
+    // small confirm wrapper using browser confirm to keep code simple
+    function confirm(message){ return new Promise(resolve => { resolve(window.confirm(message)); }); }
+
+    // copy IBAN
+    document.getElementById('btn-copy-iban').addEventListener('click', async ()=>{
+      const val = document.getElementById('acct-iban').value || '';
+      if(!val){ showToast('IBAN non disponible', 'warning'); return; }
+      try { await navigator.clipboard.writeText(val); showToast('IBAN copié', 'primary'); } catch(e){ const ta=document.createElement('textarea');ta.value=val;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('IBAN copié','primary')}catch(_){showToast('Impossible de copier','danger')}ta.remove(); }
     });
 
-    function escapeHtml(s=''){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
+    // filters
+    document.getElementById('tx-filter-type').addEventListener('change', ()=> renderRecentTransactions());
+    document.getElementById('tx-filter-q').addEventListener('input', ()=> renderRecentTransactions());
+    document.getElementById('tx-filter-clear').addEventListener('click', ()=> { document.getElementById('tx-filter-q').value=''; document.getElementById('tx-filter-type').value='all'; renderRecentTransactions(); });
+
+    // helper: recompute upcoming balance periodically (if scheduled changed)
+    setInterval(()=> computeAndRenderUpcomingBalance(), 30*1000);
 
     window.addEventListener('load', init);
 
