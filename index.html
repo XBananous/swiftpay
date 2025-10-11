@@ -2,584 +2,383 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>SwiftPay — Connexion Discord</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Swift Pay — Connexion</title>
 
-  <!-- Bootstrap -->
+  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <!-- Font Awesome -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
 
   <style>
-    body { background:#f8f9fa; -webkit-font-smoothing:antialiased; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-    .section-icon {
-      width:56px; height:56px;
-      display:flex; align-items:center; justify-content:center;
-      border-radius:10px; background:#fff;
-      box-shadow:0 1px 2px rgba(0,0,0,0.05);
-      flex-shrink:0;
-    }
-    .section-icon i { font-size:20px; line-height:1; }
-    .full-width-btn{ width:100%; }
-    #loading-overlay{ position:fixed; inset:0; background:rgba(255,255,255,0.85); z-index:2150000000; display:none; align-items:center; justify-content:center; }
-    .card-center { max-width:920px; margin:28px auto; }
-    .small-muted { color:#6c757d; }
-    .stacked { display:grid; gap:0.6rem; }
-    .text-left-force { text-align:left !important; }
-    .section-title { font-weight:600; font-size:1.05rem; }
-    .note-muted { color:#6c757d; font-size:0.95rem; }
+    body { background:#f5f7fb; }
+    .card { max-width:720px; margin:40px auto; }
+    .logo { font-size:2.25rem; font-weight:700; letter-spacing:0.4px; }
+    .small-muted { color: #6c757d; font-size:0.9rem; }
+    .separator { display:flex; align-items:center; gap:12px; margin:18px 0; }
+    .separator .line { flex:1; height:1px; background:#e9ecef; }
+    .rp-badge { font-weight:700; color:#c0392b; margin-left:6px; }
+    /* boutons pleine largeur (s'applique aussi via d-grid) */
+    .full-width { width:100%; }
   </style>
 </head>
 <body>
-
-  <!-- NAVBAR (bouton déconnexion retiré) -->
-  <nav class="navbar navbar-light bg-white shadow-sm">
-    <div class="container d-flex justify-content-between align-items-center">
-      <a class="navbar-brand mb-0 h1 d-flex align-items-center gap-2" href="#">
-        <img src="logo.png" alt="SwiftPay" width="42" height="42" style="object-fit:contain;">
-        <span class="fw-semibold">SwiftPay</span>
-      </a>
-      <!-- NAV logout intentionally removed per request -->
-      <div></div>
-    </div>
-  </nav>
-
-  <!-- Loading overlay -->
-  <div id="loading-overlay">
-    <div class="text-center">
-      <div class="spinner-border text-primary" style="width:3rem;height:3rem" role="status"></div>
-      <div class="fw-semibold mt-2">Chargement...</div>
-    </div>
-  </div>
-
-  <main class="container py-4">
-    <div class="card card-center shadow-sm">
+  <div class="container py-5">
+    <div class="card shadow-sm">
       <div class="card-body">
-        <div class="mb-4">
-          <h3 class="mb-1">Connexion</h3>
-          <!-- TEXT CHANGED as requested -->
-          <div class="note-muted">Connectez-vous à Swift Pay pour accéder à vos comptes.</div>
+        <div class="d-flex align-items-center mb-4">
+          <div class="me-3 text-primary"><i class="fa-solid fa-wallet fa-2x"></i></div>
+          <div>
+            <div class="logo">Swift Pay</div>
+            <div class="small-muted">Connexion</div>
+          </div>
         </div>
 
-        <!-- 1) Se connecter à Discord -->
-        <section id="section-connect" class="mb-4">
-          <div class="d-flex gap-3 align-items-start">
-            <div class="section-icon">
-              <i class="fa-brands fa-discord text-primary"></i>
-            </div>
-            <div class="flex-grow-1 text-left-force">
-              <div class="section-title">Se connecter à Discord</div>
-              <div class="note-muted mb-3">Autorise Swift Pay à utiliser les informations nécessaires.</div>
+        <!-- Vues (aucune n'est affichée avant init) -->
+        <div id="view-root" aria-live="polite">
+          <!-- Loading (affiché par défaut au chargement JS) -->
+          <div id="loading-view" class="text-center py-4">
+            <div class="spinner-border" role="status" aria-hidden="true"></div>
+            <div class="mt-2 small-muted">Chargement de l'authentification et de la base…</div>
+          </div>
 
-              <div id="connect-actions" class="stacked col-12 col-md-6 p-0">
-                <button id="btn-discord" class="btn btn-primary full-width-btn">
-                  <i class="fa-brands fa-discord me-2"></i> Se connecter avec Discord
-                </button>
+          <!-- VIEW: Login (identifiant + mot de passe) -->
+          <div id="login-view" class="d-none" role="region" aria-label="Connexion">
+            <h5>Se connecter</h5>
+            <p class="small-muted">Identifiant conseillé : première lettre du prénom + "." + nom (ex. <code>j.durand</code>).</p>
+
+            <div class="mb-3">
+              <label for="login_identifier" class="form-label">Identifiant</label>
+              <input id="login_identifier" class="form-control" type="text" placeholder="ex. j.durand" autocomplete="username">
+            </div>
+
+            <div class="mb-3">
+              <label for="login_password" class="form-label">Mot de passe</label>
+              <input id="login_password" class="form-control" type="password" placeholder="Ton mot de passe" autocomplete="current-password">
+            </div>
+
+            <!-- Bouton connexion pleine largeur -->
+            <div class="mb-3 d-grid">
+              <button id="btn-login" class="btn btn-primary full-width">
+                <i class="fa-solid fa-right-to-bracket me-2" aria-hidden="true"></i> Se connecter
+              </button>
+            </div>
+
+            <!-- séparateur -->
+            <div class="separator" aria-hidden="true">
+              <div class="line"></div>
+              <div class="small-muted">ou</div>
+              <div class="line"></div>
+            </div>
+
+            <!-- Bouton créer un compte sous le séparateur, pleine largeur -->
+            <div class="mb-3 d-grid">
+              <button id="btn-show-create" class="btn btn-outline-secondary full-width">
+                <i class="fa-solid fa-user-plus me-2" aria-hidden="true"></i> Créer un compte
+              </button>
+            </div>
+
+            <div id="login-msg" class="mt-2" role="status"></div>
+          </div>
+
+          <!-- VIEW: Create Account -->
+          <div id="create-view" class="d-none" role="region" aria-label="Créer un compte">
+            <h5>Créer un compte</h5>
+            <p class="small-muted">Remplis les champs marqués <span class="rp-badge">rp</span>.</p>
+
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label">Prénom <span class="rp-badge">rp</span></label>
+                <input id="first_name" class="form-control" type="text" placeholder="Prénom" autocomplete="given-name">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Nom <span class="rp-badge">rp</span></label>
+                <input id="last_name" class="form-control" type="text" placeholder="Nom" autocomplete="family-name">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Mot de passe <span class="rp-badge">rp</span></label>
+                <input id="create_password" class="form-control" type="password" placeholder="Choisis un mot de passe sécurisé" autocomplete="new-password">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Adresse <span class="rp-badge">rp</span></label>
+                <input id="address" class="form-control" type="text" placeholder="Adresse (rue, ville, ... )" autocomplete="street-address">
               </div>
             </div>
+
+            <!-- boutons pleine largeur empilés -->
+            <div class="mt-3 d-grid gap-2">
+              <button id="btn-create" class="btn btn-success full-width">
+                <i class="fa-solid fa-check me-2" aria-hidden="true"></i> Créer et aller à main.html
+              </button>
+              <button id="btn-cancel-create" class="btn btn-outline-secondary full-width">Annuler</button>
+            </div>
+
+            <div id="create-msg" class="mt-2" role="status"></div>
           </div>
-        </section>
 
-        <!-- 2) Ton compte SwiftPay (si existant) -->
-        <section id="section-account" class="mb-4" style="display:none;">
-          <div class="d-flex gap-3 align-items-start">
-            <div class="section-icon">
-              <i class="fa-solid fa-id-card text-primary"></i>
+          <!-- VIEW: Account (déjà en base) -->
+          <div id="account-view" class="d-none" role="region" aria-label="Compte">
+            <h5>Compte</h5>
+            <div id="account-info" class="mb-3"></div>
+
+            <!-- boutons pleine largeur empilés -->
+            <div class="d-grid gap-2">
+              <button id="btn-go-main" class="btn btn-primary full-width">Aller à main.html</button>
+              <button id="btn-logout" class="btn btn-outline-danger full-width">Se déconnecter</button>
             </div>
-            <div class="flex-grow-1 text-left-force">
-              <div class="section-title">Ton compte SwiftPay</div>
-              <div class="note-muted mb-3">Informations enregistrées pour ton compte.</div>
 
-              <div id="account-box" class="border rounded p-3 bg-white"></div>
-
-              <!-- Order changed: Signout first, then Modify under it -->
-              <div class="stacked mt-3 col-12 col-md-6 p-0">
-                <button id="btn-signout-existing" class="btn btn-secondary full-width-btn">Se déconnecter</button>
-                <button id="btn-edit" class="btn btn-outline-primary full-width-btn">Modifier mes informations</button>
-              </div>
-            </div>
+            <div id="account-msg" class="mt-2" role="status"></div>
           </div>
-        </section>
 
-        <!-- 3) Redirection (Accéder au tableau de bord) -->
-        <section id="section-redirect" class="mb-4" style="display:none;">
-          <div class="d-flex gap-3 align-items-start">
-            <div class="section-icon">
-              <i class="fa-solid fa-arrow-right-to-bracket text-primary"></i>
-            </div>
-            <div class="flex-grow-1 text-left-force">
-              <div class="section-title">Redirection</div>
-              <div class="note-muted mb-3">Accède à l'espace principal.</div>
-
-              <div class="stacked col-12 col-md-6 p-0">
-                <a id="go-main" class="btn btn-primary full-width-btn text-white" href="main.html">Accéder au tableau de bord</a>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 4) Création d'infos -->
-        <section id="section-create" class="mb-4" style="display:none;">
-          <div class="d-flex gap-3 align-items-start">
-            <div class="section-icon">
-              <i class="fa-solid fa-user-plus text-primary"></i>
-            </div>
-            <div class="flex-grow-1 text-left-force">
-              <div class="section-title">Créer ton profil SwiftPay</div>
-              <div class="note-muted mb-3">Renseigne les champs requis pour créer ton compte.</div>
-
-              <form id="create-form" class="col-12 col-md-8 p-0">
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label class="form-label">Prénom</label>
-                    <input id="first_name" class="form-control" required />
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Nom</label>
-                    <input id="last_name" class="form-control" required />
-                  </div>
-                  <div class="col-12">
-                    <label class="form-label">Adresse (optionnel)</label>
-                    <input id="address" class="form-control" />
-                  </div>
-                </div>
-
-                <div class="stacked mt-3 col-12 col-md-6 p-0">
-                  <button type="submit" class="btn btn-primary full-width-btn">Confirmer et continuer</button>
-                  <button id="btn-signout" type="button" class="btn btn-secondary full-width-btn">Se déconnecter</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </section>
-
-        <div id="error" style="display:none;">
-          <div class="alert alert-danger" id="error-msg"></div>
         </div>
-
       </div>
-
-      <div class="card-footer text-muted text-start">© SwiftPay</div>
-    </div>
-  </main>
-
-  <!-- EDIT Modal (Bootstrap) -->
-  <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <form id="modal-edit-form" class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Modifier mes informations</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Prénom</label>
-            <input id="modal-first_name" class="form-control" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Nom</label>
-            <input id="modal-last_name" class="form-control" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Adresse (optionnel)</label>
-            <input id="modal-address" class="form-control" />
-          </div>
-          <div id="modal-error" class="text-danger small" style="display:none;"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button id="modal-save-btn" type="submit" class="btn btn-primary">Enregistrer</button>
-        </div>
-      </form>
     </div>
   </div>
 
-  <!-- Toast container -->
-  <div class="position-fixed top-0 end-0 p-3" style="z-index:1080">
-    <div id="toast-area"></div>
-  </div>
-
-  <!-- Supabase + Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+
   <script>
-    // ========== CONFIG ==========
+    /************************************************
+     * Configuration (fourni)
+     ************************************************/
     const SUPABASE_URL = "https://gkzeeytyijerwoeyrhro.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdremVleXR5aWplcndvZXlyaHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxMDUzMzIsImV4cCI6MjA3NTY4MTMzMn0.1eUT_gOwsHPYe5GY3K-tmhmB839ki5N0afDG554WfeI";
-    const DISCORD_CLIENT_ID = "1426278588231057538";
-    const DISCORD_REDIRECT_URI = "https://xbananous.github.io/swiftpay/index.html";
-    const DISCORD_SCOPES = ["identify","email"];
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdremVleXR5aWplcndvZXlyaHJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxMDUzMzIsImV4cCI6MjA3NTY4MTMzMn0.1eUT_gOwsHPYe5GY3K-tmhmB839ki5N0afDG554WfeI";
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const TOKEN_KEY = "swiftpay_discord_token_v1";
+    // Création du client supabase (immédiate)
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // UI helpers
-    function show(id){ document.getElementById(id).style.display = ""; }
-    function hide(id){ document.getElementById(id).style.display = "none"; }
-    function toast(msg, type="primary"){
-      const id = "t" + Math.random().toString(36).slice(2,8);
-      const area = document.getElementById("toast-area");
-      const el = document.createElement("div");
-      el.innerHTML = `
-        <div id="${id}" class="toast align-items-center text-bg-${type} border-0 show" role="alert">
-          <div class="d-flex">
-            <div class="toast-body">${msg}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-          </div>
-        </div>`;
-      area.appendChild(el.firstElementChild);
-      setTimeout(()=> { const t = document.getElementById(id); if(t) t.remove(); }, 3500);
-    }
-    function parseHash(hash){
-      if(!hash) return {};
-      if(hash.startsWith("#")) hash = hash.substring(1);
-      return hash.split("&").reduce((acc,pair)=>{
-        const [k,v] = pair.split("=");
-        acc[k] = decodeURIComponent(v||"");
-        return acc;
-      },{});
-    }
-    function discordAuthUrl(){
-      const base = "https://discord.com/api/oauth2/authorize";
-      const params = new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        redirect_uri: DISCORD_REDIRECT_URI,
-        response_type: "token",
-        scope: DISCORD_SCOPES.join(" "),
-        prompt: "consent"
+    /************************************************
+     * Helpers UI
+     ************************************************/
+    const $ = id => document.getElementById(id);
+
+    // showView affiche UNE vue et cache les autres
+    function showView(viewId) {
+      const views = ['loading-view','login-view','create-view','account-view'];
+      views.forEach(v => {
+        const el = $(v);
+        if (!el) return;
+        if (v === viewId) el.classList.remove('d-none'); else el.classList.add('d-none');
       });
-      return base + "?" + params.toString();
     }
-    function showLoading(){ document.getElementById("loading-overlay").style.display="flex"; }
-    function hideLoading(){ document.getElementById("loading-overlay").style.display="none"; }
 
-    // token helpers
-    function saveToken(obj){
-      const payload = {
-        access_token: obj.access_token,
-        token_type: obj.token_type || "Bearer",
-        scope: obj.scope || "",
-        saved_at: Date.now(),
-        expires_in: obj.expires_in ? Number(obj.expires_in) : null
-      };
-      localStorage.setItem(TOKEN_KEY, JSON.stringify(payload));
+    // Afficher loading par défaut tant que l'initialisation n'a pas eu lieu
+    document.addEventListener('DOMContentLoaded', () => {
+      // Montrer explicitement loading dès le chargement du DOM
+      showView('loading-view');
+      attachHandlers();
+      // initialisation asynchrone de l'état d'authentification
+      initAuthState();
+    });
+
+    function attachHandlers(){
+      $('btn-login').addEventListener('click', onLogin);
+      $('btn-show-create').addEventListener('click', () => { showView('create-view'); });
+      $('btn-cancel-create').addEventListener('click', () => { showView('login-view'); });
+      $('btn-create').addEventListener('click', onCreate);
+      $('btn-go-main')?.addEventListener('click', () => { window.location.href = 'main.html'; });
+      $('btn-logout')?.addEventListener('click', onSignOut);
     }
-    function getSavedToken(){
-      try{
-        const raw = localStorage.getItem(TOKEN_KEY);
-        if(!raw) return null;
-        const obj = JSON.parse(raw);
-        if(obj.expires_in){
-          const age = (Date.now()-obj.saved_at)/1000;
-          if(age >= obj.expires_in){ localStorage.removeItem(TOKEN_KEY); return null; }
+
+    /************************************************
+     * Auth / session init
+     * onAuthStateChange et getSession : on attend la fin
+     ************************************************/
+    async function initAuthState(){
+      showView('loading-view');
+      try {
+        // Récupère session existante (si l'utilisateur est déjà connecté)
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) console.warn('getSession error:', sessionError);
+        const session = sessionData?.session ?? null;
+
+        // Ecoute les changements d'authentification (utile si login / signUp modifie l'état)
+        supabase.auth.onAuthStateChange((event, session) => {
+          if (session?.user) {
+            checkAccountForUser(session.user);
+          } else {
+            // si déconnecté -> afficher l'écran de connexion
+            showView('login-view');
+          }
+        });
+
+        if (session && session.user) {
+          // utilisateur connecté -> vérifier la table accounts
+          await checkAccountForUser(session.user);
+        } else {
+          // pas connecté -> afficher login
+          showView('login-view');
         }
-        return obj;
-      }catch(e){ return null; }
-    }
-    function clearSavedToken(){ localStorage.removeItem(TOKEN_KEY); }
 
-    // Discord / Supabase helpers
-    async function fetchDiscordUser(token){
-      const res = await fetch("https://discord.com/api/users/@me", {
-        headers: { Authorization: "Bearer " + token }
-      });
-      if(!res.ok){
-        const text = await res.text().catch(()=> "");
-        throw new Error("Discord API error ("+res.status+"): "+text);
+      } catch(err) {
+        console.error('initAuthState error', err);
+        $('login-msg').innerHTML = `<div class="text-danger">Erreur initialisation : ${err.message || err}</div>`;
+        showView('login-view');
       }
-      return await res.json();
     }
 
-    async function fetchAccountByDiscordId(discordId){
-      const { data, error } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("discord_id", discordId)
-        .limit(1);
-      if(error) throw error;
-      return data && data.length ? data[0] : null;
-    }
-    async function createAccount(payload){
-      const { data, error } = await supabase
-        .from("accounts")
-        .insert([payload])
-        .select()
-        .single();
-      if(error) throw error;
-      return data;
-    }
-    async function updateAccount(id, payload){
-      const { data, error } = await supabase
-        .from("accounts")
-        .update(payload)
-        .eq("id", id)
-        .select()
-        .single();
-      if(error) throw error;
-      return data;
+    /************************************************
+     * Connexion / Création (identifiant -> email synthétique)
+     ************************************************/
+    function synthEmailFromIdentifier(identifier){
+      const safe = (identifier || '').trim().toLowerCase();
+      return safe + '@swiftpay.local';
     }
 
-    // renderers
-    function renderAccountBox(account){
-      const box = document.getElementById("account-box");
-      box.innerHTML = `
-        <div class="fw-semibold">${account.first_name || ""} ${account.last_name || ""}</div>
-        <div class="small-muted">Email : ${account.email || "—"}</div>
-        <div class="small-muted">Adresse : ${account.address || "—"}</div>
-        <div class="small-muted">Créé : ${new Date(account.created_at).toLocaleString()}</div>
-      `;
-    }
+    async function onLogin(){
+      $('login-msg').innerHTML = '';
+      const identifier = $('login_identifier').value.trim();
+      const password = $('login_password').value;
 
-    // modal init
-    const editModalEl = document.getElementById("editModal");
-    const bsEditModal = new bootstrap.Modal(editModalEl, { backdrop: 'static', keyboard: false });
-
-    // events
-    document.getElementById("btn-discord").addEventListener("click", ()=> {
-      window.location.href = discordAuthUrl();
-    });
-
-    document.getElementById("btn-signout").addEventListener("click", ()=> {
-      clearSavedToken();
-      history.replaceState(null,"",location.pathname+location.search);
-      location.reload();
-    });
-    document.getElementById("btn-signout-existing").addEventListener("click", ()=> {
-      clearSavedToken();
-      history.replaceState(null,"",location.pathname+location.search);
-      // after signout, show only connect section
-      hide("section-account"); hide("section-redirect"); hide("section-create");
-      show("section-connect");
-    });
-
-    document.getElementById("btn-edit").addEventListener("click", ()=>{
-      const ex = window.__existingAccount;
-      if(!ex) return;
-      document.getElementById("modal-first_name").value = ex.first_name || "";
-      document.getElementById("modal-last_name").value  = ex.last_name || "";
-      document.getElementById("modal-address").value    = ex.address || "";
-      document.getElementById("modal-error").style.display = "none";
-      bsEditModal.show();
-    });
-
-    document.getElementById("modal-edit-form").addEventListener("submit", async (ev)=>{
-      ev.preventDefault();
-      const saveBtn = document.getElementById("modal-save-btn");
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Enregistrement...";
-      document.getElementById("modal-error").style.display = "none";
-
-      try{
-        const first_name = document.getElementById("modal-first_name").value.trim();
-        const last_name  = document.getElementById("modal-last_name").value.trim();
-        const address    = document.getElementById("modal-address").value.trim();
-        if(!first_name || !last_name) throw new Error("Prénom et nom requis.");
-
-        const id = window.__existingAccount.id;
-        const payload = { first_name, last_name, address: address || null, updated_at: new Date().toISOString() };
-
-        const updated = await updateAccount(id, payload);
-        window.__existingAccount = updated;
-        renderAccountBox(updated);
-        bsEditModal.hide();
-        toast("Informations mises à jour.", "primary");
-      } catch(err){
-        const message = err && err.message ? err.message : String(err);
-        document.getElementById("modal-error").textContent = "Erreur : " + message;
-        document.getElementById("modal-error").style.display = "block";
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = "Enregistrer";
-      }
-    });
-
-    document.getElementById("create-form").addEventListener("submit", async (ev)=>{
-      ev.preventDefault();
-      showLoading();
-      try{
-        const first_name = document.getElementById("first_name").value.trim();
-        const last_name = document.getElementById("last_name").value.trim();
-        const address = document.getElementById("address").value.trim();
-        if(!first_name || !last_name) throw new Error("Prénom et nom requis.");
-
-        const discordUser = window.__discordUser;
-        const payload = {
-          discord_id: discordUser.id,
-          discord_username: discordUser.username + "#" + discordUser.discriminator,
-          email: discordUser.email || null,
-          first_name,
-          last_name,
-          address: address || null,
-          created_at: new Date().toISOString()
-        };
-
-        const created = await createAccount(payload);
-        if(!created) throw new Error("Échec lors de la création du compte.");
-
-        // Instead of redirecting, show the created account immediately and show redirect section
-        window.__existingAccount = created;
-        renderAccountBox(created);
-        hide("section-create");
-        show("section-account");
-        show("section-redirect");
-        toast("Compte Swift Pay créé.", "primary");
-      } catch(err){
-        const message = err && err.message ? err.message : String(err);
-        toast("Erreur création : " + message, "danger");
-        document.getElementById("error-msg").textContent = "Erreur création : " + message;
-        show("error");
-      } finally{ hideLoading(); }
-    });
-
-    // refresh function used on init and pageshow
-    async function refreshState() {
-      hide("section-account"); hide("section-create"); hide("section-redirect"); hide("section-connect"); hide("error");
-      const saved = getSavedToken();
-      const token = saved ? saved.access_token : null;
-      if(!token){
-        show("section-connect");
+      if (!identifier || !password) {
+        $('login-msg').innerHTML = '<div class="text-danger">Identifiant et mot de passe requis.</div>';
         return;
       }
 
-      showLoading();
-      try{
-        const discordUser = await fetchDiscordUser(token);
-        window.__discordUser = discordUser;
+      showView('loading-view');
+      try {
+        const email = synthEmailFromIdentifier(identifier);
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-        const existing = await fetchAccountByDiscordId(discordUser.id);
-        if(existing){
-          window.__existingAccount = existing;
-          renderAccountBox(existing);
-          show("section-account");
-          show("section-redirect");
+        if (error) throw error;
+
+        // Si authentifié, checkAccountForUser sera déclenché par onAuthStateChange ou ici :
+        if (data?.user) {
+          await checkAccountForUser(data.user);
         } else {
-          show("section-create");
+          // fallback
+          showView('login-view');
+          $('login-msg').innerHTML = '<div class="text-success">Connecté.</div>';
         }
-      } catch(err){
-        clearSavedToken();
-        const message = err && err.message ? err.message : String(err);
-        toast("Impossible de reconnecter automatiquement : " + message, "danger");
-        show("section-connect");
-      } finally { hideLoading(); }
-    }
-
-    // pageshow listener to detect back/forward and refresh UI
-    window.addEventListener("pageshow", (event) => {
-      // If user comes back (bfcache), re-run refreshState to sync UI with storage/backend
-      refreshState();
-    });
-
-    // init on load
-    window.addEventListener("load", () => {
-      // initial refresh
-      refreshState();
-    });
-
-    // helper functions for token and discord fetch reused (kept here for completeness)
-    // (they are defined above already in file scope - duplicated not necessary)
-    // but we ensure they are available in this script scope
-
-    // ---------- helper functions repeated to be sure (parseHash etc) ----------
-    // parseHash (for implicit token)
-    function parseHash(hash){
-      if(!hash) return {};
-      if(hash.startsWith("#")) hash = hash.substring(1);
-      return hash.split("&").reduce((acc,pair)=>{
-        const [k,v] = pair.split("=");
-        acc[k] = decodeURIComponent(v||"");
-        return acc;
-      },{});
-    }
-
-    // On load, also handle token in URL fragment (implicit flow)
-    (function handleFragmentToken(){
-      const fragment = parseHash(location.hash);
-      if(fragment.access_token){
-        saveToken({ access_token: fragment.access_token, token_type: fragment.token_type, expires_in: fragment.expires_in, scope: fragment.scope });
-        // clear fragment
-        history.replaceState(null,"",location.pathname + location.search);
+      } catch(err) {
+        console.error('onLogin error', err);
+        showView('login-view');
+        $('login-msg').innerHTML = `<div class="text-danger">Erreur connexion : ${err.message || err}</div>`;
       }
-    })();
-
-    // Utility: discordAuthUrl (again ensure available)
-    function discordAuthUrl(){
-      const base = "https://discord.com/api/oauth2/authorize";
-      const params = new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        redirect_uri: DISCORD_REDIRECT_URI,
-        response_type: "token",
-        scope: DISCORD_SCOPES.join(" "),
-        prompt: "consent"
-      });
-      return base + "?" + params.toString();
     }
 
-    // token helpers (re-used)
-    function saveToken(obj){
-      const payload = {
-        access_token: obj.access_token,
-        token_type: obj.token_type || "Bearer",
-        scope: obj.scope || "",
-        saved_at: Date.now(),
-        expires_in: obj.expires_in ? Number(obj.expires_in) : null
-      };
-      localStorage.setItem(TOKEN_KEY, JSON.stringify(payload));
+    async function onCreate(){
+      $('create-msg').innerHTML = '';
+      const first_name = $('first_name').value.trim();
+      const last_name = $('last_name').value.trim();
+      const password = $('create_password').value;
+      const address = $('address').value.trim();
+
+      // rp requis : prénom, nom, adresse et mot de passe
+      if(!first_name || !last_name || !password || !address){
+        $('create-msg').innerHTML = '<div class="text-danger">Tous les champs marqués rp sont requis.</div>';
+        return;
+      }
+
+      // construire identifiant conseillé (initiale.prenom + nom)
+      const identifier = (first_name[0] || '').toLowerCase() + '.' + last_name.toLowerCase();
+      const email = synthEmailFromIdentifier(identifier);
+
+      showView('loading-view');
+      try {
+        // Créer utilisateur dans Supabase Auth
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password
+        });
+
+        if (signUpError) throw signUpError;
+
+        // Insérer dans la table accounts
+        const payload = {
+          user_id: signUpData.user?.id || null,
+          identifier,
+          email,
+          first_name,
+          last_name,
+          address,
+          created_at: new Date().toISOString()
+        };
+
+        const { data: inserted, error: insertError } = await supabase.from('accounts').insert([payload]).select().single();
+        if (insertError) throw insertError;
+
+        // redirige vers main.html
+        window.location.href = 'main.html';
+      } catch(err) {
+        console.error('onCreate error', err);
+        showView('create-view');
+        $('create-msg').innerHTML = `<div class="text-danger">Erreur création : ${err.message || err}</div>`;
+      }
     }
-    function getSavedToken(){
-      try{
-        const raw = localStorage.getItem(TOKEN_KEY);
-        if(!raw) return null;
-        const obj = JSON.parse(raw);
-        if(obj.expires_in){
-          const age = (Date.now()-obj.saved_at)/1000;
-          if(age >= obj.expires_in){ localStorage.removeItem(TOKEN_KEY); return null; }
+
+    /************************************************
+     * Vérifier la table accounts pour l'utilisateur
+     ************************************************/
+    async function checkAccountForUser(user){
+      showView('loading-view');
+      $('account-msg').innerHTML = '';
+
+      try {
+        const userId = user.id;
+        const email = user.email;
+
+        // recherche par user_id OU email
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .or(`user_id.eq.${userId},email.eq.${email}`)
+          .limit(1);
+
+        if (error) {
+          console.error('checkAccountForUser select error', error);
+          $('account-msg').innerHTML = `<div class="text-danger">Erreur lecture comptes : ${error.message}</div>`;
+          showView('account-view');
+          return;
         }
-        return obj;
-      }catch(e){ return null; }
-    }
-    function clearSavedToken(){ localStorage.removeItem(TOKEN_KEY); }
 
-    async function fetchDiscordUser(token){
-      const res = await fetch("https://discord.com/api/users/@me", {
-        headers: { Authorization: "Bearer " + token }
-      });
-      if(!res.ok){
-        const text = await res.text().catch(()=>"");
-        throw new Error("Discord API error ("+res.status+"): "+text);
+        if (data && data.length > 0) {
+          renderAccountView(data[0]);
+        } else {
+          // pas trouvé -> proposer création (pré-remplir email interne visible dans message)
+          $('create-msg').innerHTML = `<div class="small-muted">Compte introuvable pour ${escapeHtml(email)} — tu peux en créer un.</div>`;
+          showView('create-view');
+        }
+      } catch(err) {
+        console.error('checkAccountForUser error', err);
+        $('account-msg').innerHTML = `<div class="text-danger">Erreur : ${err.message || err}</div>`;
+        showView('account-view');
       }
-      return await res.json();
     }
 
-    async function fetchAccountByDiscordId(discordId){
-      const { data, error } = await supabase
-        .from("accounts")
-        .select("*")
-        .eq("discord_id", discordId)
-        .limit(1);
-      if(error) throw error;
-      return data && data.length ? data[0] : null;
-    }
-    async function createAccount(payload){
-      const { data, error } = await supabase
-        .from("accounts")
-        .insert([payload])
-        .select()
-        .single();
-      if(error) throw error;
-      return data;
-    }
-    async function updateAccount(id, payload){
-      const { data, error } = await supabase
-        .from("accounts")
-        .update(payload)
-        .eq("id", id)
-        .select()
-        .single();
-      if(error) throw error;
-      return data;
+    function renderAccountView(acct){
+      const infoHtml = `
+        <div class="border rounded p-3 mb-2">
+          <div><strong>Identifiant :</strong> ${escapeHtml(acct.identifier || '')}</div>
+          <div><strong>Prénom :</strong> ${escapeHtml(acct.first_name || '')}</div>
+          <div><strong>Nom :</strong> ${escapeHtml(acct.last_name || '')}</div>
+          <div><strong>E-mail (interne) :</strong> ${escapeHtml(acct.email || '')}</div>
+          <div><strong>Adresse :</strong> ${escapeHtml(acct.address || '—')}</div>
+        </div>`;
+      $('account-info').innerHTML = infoHtml;
+      showView('account-view');
     }
 
+    async function onSignOut(){
+      await supabase.auth.signOut();
+      showView('login-view');
+      $('login-msg').innerHTML = '<div class="small-muted">Déconnecté.</div>';
+    }
+
+    function escapeHtml(str){
+      if(!str) return '';
+      return String(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'",'&#39;');
+    }
   </script>
 </body>
 </html>
